@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { logger } from '@worldplay/shared';
 import {
   View,
   Text,
@@ -97,7 +96,7 @@ const ShopScreen = ({ userId, onLogout }) => {
         })
       );
     } catch (e) {
-      logger.error('Fetch balance error:', e);
+      console.error('Fetch balance error:', e);
     }
   }, [dispatch]);
 
@@ -139,7 +138,7 @@ const ShopScreen = ({ userId, onLogout }) => {
       }
       // user cancelled or payment failed — no action needed
     } catch (error) {
-      logger.error('Payment error:', error);
+      console.error('Payment error:', error);
       Alert.alert(t('payment_error_title'), error.message);
     } finally {
       setLoading(false);

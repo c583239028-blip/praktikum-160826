@@ -7,6 +7,10 @@
   "stream_id_placeholder": "הכנס מזהה שידור",
   "join_button": "הצטרף לשידור",
   "submit_bet_button": "הגש הימור",
+  "question_active": "שאלה פעילה",
+  "stream_resumed_message": "ממשיך שידור",
+  "status_error_receiving_video": "שגיאה בקבלת הוידאו",
+  "playerLabel": "שחקן",
   "joining_stream": "מצטרף לשידור...",
   "waiting_for_host": "מחובר. ממתין שהמארח יתחיל לשדר...",
   "rejected_title": "ההזמנה נדחתה",
@@ -27,6 +31,5 @@
   "viewerQuestionsCount": "{{count}} שאלות",
   "default_title": "צפייה בשידור",
   "status_waiting_for_id": "מחכה למזהה שידור...",
-  "alert_enter_stream_id": "אנא הכנס מזהה שידור",
-  "retry_button": "נסה שוב"
+  "alert_enter_stream_id": "אנא הכנס מזהה שידור"
 }

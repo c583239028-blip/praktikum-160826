@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import { WizardShell } from '../components/WizardShell';
-import { WizardNav } from '../components/WizardNav';
+import Btn from '../../../components/game/ui/Btn';
 import {
   Colors,
   Spacing,
@@ -54,9 +54,7 @@ export function ShareBroadcastStep({ onNext, onBack, total, current }) {
           <Text style={styles.linkText}>
             🎮 {t('shareMessage', 'A new game starts now! Come play with me')}
           </Text>
-          {/* PROD: placeholder — replace with the real share URL (e.g.
-              https://<host>/live/[id]) once sharing is wired. */}
-          <Text style={styles.linkUrl}>https://example.com/live/[id]</Text>
+          <Text style={styles.linkUrl}>https://yourgame.com/live</Text>
         </View>
 
         <Text style={styles.sectionLabel}>
@@ -78,7 +76,18 @@ export function ShareBroadcastStep({ onNext, onBack, total, current }) {
         </Text>
       </View>
 
-      <WizardNav onNext={onNext} onBack={onBack} />
+      <View style={styles.navRow}>
+        <View style={styles.nextBtn}>
+          <Btn
+            label={t('next', 'Next')}
+            onPress={onNext}
+            color={Colors.primary.default}
+          />
+        </View>
+        <TouchableOpacity style={styles.prevBtn} onPress={onBack}>
+          <Text style={styles.prevText}>{t('previous', 'Previous')}</Text>
+        </TouchableOpacity>
+      </View>
     </WizardShell>
   );
 }
@@ -141,4 +150,13 @@ const styles = StyleSheet.create({
     fontSize: FontSize.caption,
     textAlign: 'center',
   },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.xl,
+  },
+  nextBtn: { minWidth: 140 },
+  prevBtn: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
+  prevText: { color: Colors.text.secondary, fontSize: FontSize.bodyL },
 });

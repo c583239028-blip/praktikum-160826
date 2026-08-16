@@ -1,14 +1,14 @@
-import { View, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import { WizardShell } from '../components/WizardShell';
-import { WizardNav } from '../components/WizardNav';
 import Field from '../../../components/game/ui/Field';
-import { Spacing } from '@/constants/design';
+import Btn from '../../../components/game/ui/Btn';
+import { Colors, Spacing, FontSize } from '@/constants/design';
 
 // Step 1 — Game Name (white). Single required field; Next stays disabled while
 // the name is empty. Dumb step: value/onChange/onNext/onBack (+ wizard position).
-// Uses the shared Field (light) + WizardNav instead of local primitives.
+// Uses the shared Field (light) + Btn instead of local primitives.
 export function GameNameStep({
   value,
   onChange,
@@ -36,7 +36,19 @@ export function GameNameStep({
         />
       </View>
 
-      <WizardNav onNext={onNext} onBack={onBack} nextDisabled={!valid} />
+      <View style={styles.navRow}>
+        <View style={styles.nextBtn}>
+          <Btn
+            label={t('next', 'Next')}
+            onPress={onNext}
+            color={Colors.primary.default}
+            disabled={!valid}
+          />
+        </View>
+        <TouchableOpacity style={styles.prevBtn} onPress={onBack}>
+          <Text style={styles.prevText}>{t('previous', 'Previous')}</Text>
+        </TouchableOpacity>
+      </View>
     </WizardShell>
   );
 }
@@ -52,4 +64,13 @@ GameNameStep.propTypes = {
 
 const styles = StyleSheet.create({
   pane: { flex: 1, paddingHorizontal: Spacing.xl },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.xl,
+  },
+  nextBtn: { minWidth: 140 },
+  prevBtn: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
+  prevText: { color: Colors.text.secondary, fontSize: FontSize.bodyL },
 });

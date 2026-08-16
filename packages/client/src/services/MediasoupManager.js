@@ -1,7 +1,7 @@
 import { Device } from 'mediasoup-client';
 import * as Base64 from 'base-64';
 import { emitMediaPromise } from './socket.service';
-import { SOCKET_EVENTS, logger } from '@worldplay/shared';
+import { SOCKET_EVENTS } from '@worldplay/shared';
 
 if (typeof global.btoa === 'undefined') {
   global.btoa = (str) => Base64.encode(str);
@@ -38,10 +38,10 @@ export const MediasoupManager = {
       ensureWebRTC();
       device = new Device({ handlerName: 'ReactNative106' });
       await device.load({ routerRtpCapabilities });
-      logger.success('Mediasoup Device loaded successfully');
+      console.log('✅ Mediasoup Device loaded successfully');
       return device;
     } catch (error) {
-      logger.error('Failed to load device:', error);
+      console.error('Failed to load device:', error);
       throw error;
     }
   },
@@ -68,9 +68,7 @@ export const MediasoupManager = {
       });
       return stream;
     } catch (err) {
-      logger.warn(
-        `getLocalStream failed, returning null ${err?.message ?? err}`
-      );
+      console.warn('getLocalStream failed, returning null', err);
       return null;
     }
   },

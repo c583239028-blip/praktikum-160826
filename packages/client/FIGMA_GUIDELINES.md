@@ -8,8 +8,8 @@
 > For everything else use the canonical sources:
 >
 > - 🎨 **Design tokens (colors, typography, spacing, radius, gradients)** → [`constants/design.js`](constants/design.js) — **source of truth**.
-> - 🗺️ **Screen inventory (every screen + node ID + screen number)** → [FIGMA-SCREENS.md](../../docs/spec/FIGMA-SCREENS.md).
-> - 📋 **Product behavior** → [SPEC.md](../../docs/spec/SPEC.md).
+> - 🗺️ **Screen inventory (every screen + node ID + screen number)** → [FIGMA-SCREENS.md](../../FIGMA-SCREENS.md).
+> - 📋 **Product behavior** → [SPEC.md](../../SPEC.md).
 
 ---
 
@@ -32,7 +32,7 @@
 | Design system       | `4702:23825` | Colors, typography, components       |
 
 > **Rule:** Always implement from **screens for dev** — never from the Design or Archive pages.
-> The per-section / per-screen map (node IDs + screen numbers) lives in [FIGMA-SCREENS.md](../../docs/spec/FIGMA-SCREENS.md).
+> The per-section / per-screen map (node IDs + screen numbers) lives in [FIGMA-SCREENS.md](../../FIGMA-SCREENS.md).
 
 ---
 
@@ -151,7 +151,7 @@ RTL = False   — English (left-to-right)
 
 - Always check both variants exist before implementing.
 - **Default UI direction is English / LTR, then auto-follow the device locale** (PM-confirmed 2026-06-18,
-  see [SPEC.md §13](../../docs/spec/SPEC.md)). Supported beta languages: English + Hebrew. _(An earlier "default RTL/Hebrew"
+  see [SPEC.md §13](../../SPEC.md)). Supported beta languages: English + Hebrew. _(An earlier "default RTL/Hebrew"
   note here was superseded.)_
 - When implementing, use React Native's `I18nManager.isRTL` to switch layout, and logical props
   (`paddingStart`/`marginEnd`) rather than hardcoded left/right.

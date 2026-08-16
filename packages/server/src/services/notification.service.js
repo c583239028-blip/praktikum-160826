@@ -6,15 +6,16 @@
  *
  * פונקציות:
  *   fetchUserNotifications(userId, filter)          — שליפת התראות + ספירת לא-נקראות (filter: 'unread' | undefined)
- *   updateNotificationReadStatus(notificationId, userId) — סימון התראה כנקראה (מאמת בעלות)
+ *   updateNotificationReadStatus(notificationId)    — סימון התראה כנקראה
  *   createNewNotification(userId, title, message)    — יצירת התראה חדשה ('SYSTEM' | 'GAME_INVITE' | 'REWARD')
  *
  * מתקשר עם: Prisma → Notification
- * תלוי ב:   validation.service.js (קיום משתמש, ולידציית טקסט)
+ * תלוי ב:   validation.service.js (קיום משתמש, קיום התראה, ולידציית טקסט)
  * משמש את:  notification.controller.js
+ *
+ * TODO: updateNotificationReadStatus צריך לקבל userId ולוודא בעלות לפני עדכון
  */
 import prisma from '../lib/prisma.js';
-import { ERROR_MESSAGES } from '@worldplay/shared';
 import * as gameRules from '../services/validation.service.js';
 
 const notificationService = {
@@ -29,7 +30,7 @@ const notificationService = {
     const [notifications, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where: whereCondition,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { sendDate: 'desc' },
         take: 20,
       }),
       prisma.notification.count({
@@ -40,17 +41,16 @@ const notificationService = {
     return { notifications, unreadCount };
   },
 
-  async updateNotificationReadStatus(notificationId, userId) {
-    // עדכון מתוחם-בעלות אטומי: מאמת בעלות ומעדכן במכה אחת, בלי TOCTOU
-    // בין בדיקת-קיום לעדכון. count === 0 מכסה גם "לא קיים" וגם "שייך למשתמש אחר".
-    const { count } = await prisma.notification.updateMany({
-      where: { id: notificationId, userId },
-      data: { isRead: true },
-    });
+  async updateNotificationReadStatus(notificationId) {
+    await gameRules.ensureNotificationExists(notificationId);
 
-    if (count === 0) {
-      throw new Error(ERROR_MESSAGES.NOTIFICATION_NOT_FOUND);
-    }
+    return await prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        isRead: true,
+        readDate: new Date(),
+      },
+    });
   },
 
   async createNewNotification(userId, title, message) {

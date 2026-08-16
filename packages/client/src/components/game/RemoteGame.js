@@ -4,27 +4,8 @@ import { Colors, Spacing, BorderRadius } from '@/constants/design';
 import { LiveIndicator } from '../game/LiveIndicator';
 import { StreamLayout } from './StreamLayout';
 import { PlayerNav } from './PlayerNav';
-import { ModeratorPip } from './ModeratorPip';
 import PowerIcon from '@/assets/icons/power.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const MODERATOR_PIP_POSITION_RATIOS = {
-  1: { x: 21 / 375, y: 36 / 812 },
-  2: { x: 240 / 375, y: 288 / 812 },
-  3: { x: 5 / 375, y: 16 / 812 },
-  4: { x: 120 / 375, y: 376 / 812 },
-};
-
-const getModeratorPipPositionRatio = (viewerStreamCount) =>
-  MODERATOR_PIP_POSITION_RATIOS[viewerStreamCount] ??
-  MODERATOR_PIP_POSITION_RATIOS[4];
-
-const STREAMS_AREA_INSETS = {
-  top: 0,
-  left: Spacing.sm,
-  right: Spacing.sm,
-  bottom: 0,
-};
 
 export const RemoteGame = ({
   isLive,
@@ -52,10 +33,6 @@ export const RemoteGame = ({
 
       <View style={styles.streamsArea}>
         <StreamLayout streams={streams} />
-        <ModeratorPip
-          initialPositionRatio={getModeratorPipPositionRatio(streams.length)}
-          containerInsets={STREAMS_AREA_INSETS}
-        />
       </View>
 
       <View style={styles.footer}>

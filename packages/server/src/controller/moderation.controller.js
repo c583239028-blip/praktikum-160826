@@ -1,14 +1,8 @@
 // נתיבי מודרציה — דיווח, השתקה/ביטול השתקה, הרחקה, והנגשת משחקים תחת מעקב לצוות
-import { ERROR_MESSAGES, logger } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 import moderationService from '../services/moderation.service.js';
 import permissionsService from '../services/permissions.service.js';
 import { ModerationType } from '@prisma/client';
-import {
-  moderationEventForType,
-  emitModerationEvent,
-  enforceKickSocket,
-  enforceMuteOnMediaServer,
-} from '../utils/moderationSocket.js';
 
 // פעולה משותפת ל-mute/unmute/kick — גישור ל-game פעיל + אכיפת הרשאת moderator
 async function performModeratorAction(req, res, type) {
@@ -45,29 +39,11 @@ async function performModeratorAction(req, res, type) {
       reason
     );
 
-    // האכיפה כבר תועדה ב-DB; כעת אוכפים אותה בזמן אמת מול היעד.
-    const io = req.app?.get?.('io');
-    if (type === ModerationType.KICK) {
-      await enforceKickSocket(io, targetUserId, game.id);
-    } else if (type === ModerationType.MUTE || type === ModerationType.UNMUTE) {
-      await enforceMuteOnMediaServer(
-        streamId,
-        targetUserId,
-        type === ModerationType.MUTE
-      );
-    }
-    emitModerationEvent(
-      io,
-      moderationEventForType(type),
-      targetUserId,
-      streamId
-    );
-
     res
       .status(201)
       .json({ message: 'Moderation action recorded', data: action });
   } catch (error) {
-    logger.error(`Moderation Action Error (${type}):`, error.message);
+    console.error(`Moderation Action Error (${type}):`, error.message);
     res
       .status(500)
       .json({ error: ERROR_MESSAGES.FAILED_TO_PERFORM_MODERATION_ACTION });
@@ -99,7 +75,7 @@ const moderationController = {
         .status(201)
         .json({ message: 'Report submitted successfully', data: action });
     } catch (error) {
-      logger.error('Report Error:', error.message);
+      console.error('Report Error:', error.message);
       res.status(500).json({ error: ERROR_MESSAGES.FAILED_TO_SUBMIT_REPORT });
     }
   },
@@ -121,7 +97,7 @@ const moderationController = {
       const games = await moderationService.getGamesUnderReview();
       return res.status(200).json({ games });
     } catch (error) {
-      logger.error('❌ getGamesUnderReview error:', error.message);
+      console.error('❌ getGamesUnderReview error:', error.message);
       return res
         .status(500)
         .json({ error: ERROR_MESSAGES.FAILED_TO_FETCH_GAMES_UNDER_REVIEW });

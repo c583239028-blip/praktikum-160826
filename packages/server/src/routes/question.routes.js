@@ -9,10 +9,6 @@ const router = express.Router();
 router.use(authenticateToken);
 
 router.post('/', questionController.addQuestion);
-// Q1b — שליחת שאלת צופה (פתוח לכל משתתף), ואישור/דחייה של המנחה
-router.post('/viewer-submission', questionController.submitViewerQuestion);
-router.patch('/:id/approve', questionController.approveQuestion);
-router.patch('/:id/reject', questionController.rejectQuestion);
 router.patch('/:id/resolve', questionController.resolveQuestion);
 router.get('/:id', questionController.getQuestion);
 router.get('/:gameId/questions', questionController.getGameQuestions);

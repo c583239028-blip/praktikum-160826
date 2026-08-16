@@ -42,8 +42,9 @@ Thumbs.db
 
 packages/media-server/*.mp4
 packages/media-server/temp/
+
+
 *.mp4
-!assets/animations/*.mp4
 packages/media-server/temp/
 # Firebase Server Private Keys
 firebase-service-account.json

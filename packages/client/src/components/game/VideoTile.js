@@ -1,6 +1,5 @@
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { RTCView } from '@livekit/react-native-webrtc';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Colors,
   Spacing,
@@ -42,13 +41,7 @@ export const VideoTile = ({
     ) : (
       <View style={styles.avatarWrapper} />
     )}
-
-    <LinearGradient
-      colors={['rgba(0,0,0,0)', 'rgba(0,0,0,1)']}
-      locations={[0.7, 1]}
-      style={styles.gradientOverlay}
-      pointerEvents="none"
-    />
+    <View style={styles.gradientOverlay} />
 
     <View style={styles.giftCounter}>
       <Text style={styles.giftCountText}>{giftCount}</Text>
@@ -108,6 +101,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    backgroundColor: Colors.neutral[900],
+    opacity: 0.35,
   },
   giftCounter: {
     position: 'absolute',

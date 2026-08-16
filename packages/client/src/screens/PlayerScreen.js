@@ -5,7 +5,7 @@ import { MediaStream } from '@livekit/react-native-webrtc';
 import { getAppSocket, emitPromise } from '../services/socket.service';
 import { MediasoupManager } from '../services/MediasoupManager';
 import { InvitationDialog } from '../components/game/JoinLifecycle/InvitationDialog';
-import { SOCKET_EVENTS, logger } from '@worldplay/shared';
+import { SOCKET_EVENTS } from '@worldplay/shared';
 import { RejectedInvitation } from '../components/game/JoinLifecycle/RejectedInvitation';
 import { EnteringScreen } from '../components/game/JoinLifecycle/EnteringScreen';
 import { RemoteGame } from '../components/game/RemoteGame';
@@ -48,29 +48,11 @@ export default function PlayerScreen({ streamId, gameType }) {
         consumerId: consumer.id,
         streamId,
       });
-      setRemoteStreams((prev) => [
-        ...prev,
-        // isCameraOff / isMicOn track the producer's live media state, updated
-        // by the PRODUCER_PAUSED/RESUMED listeners below. J2 maps these onto
-        // the rendered tile.
-        // NOTE for J2: audio and video are SEPARATE producers → separate
-        // entries here. The producers→tiles mapping must group by participant
-        // so a single tile carries both isCameraOff (video) and isMicOn (audio).
-        {
-          id: producerId,
-          role,
-          stream,
-          // Seeded optimistically as live. A late joiner whose target is already
-          // paused gets the correct flag from JOIN's currentProducers — that
-          // seeding is consumed in SCRUM-224, not here yet.
-          isCameraOff: false,
-          isMicOn: true,
-        },
-      ]);
+      setRemoteStreams((prev) => [...prev, { id: producerId, role, stream }]);
       resourcesRef.current.push({ transport: recvTransport, consumer });
     } catch (error) {
       remoteStreamsCountRef.current -= 1;
-      logger.error('Error consuming stream:', error);
+      console.error('Error consuming stream:', error);
     }
   };
   // ── STUB HANDLER — permissions screen only, no live wiring ──
@@ -92,36 +74,11 @@ export default function PlayerScreen({ streamId, gameType }) {
       await consumeStream(producerId, role);
     };
 
-    // A remote producer paused/resumed its camera or mic — reflect it on the
-    // matching tile so the viewer sees "camera off" / "muted" instead of a
-    // frozen frame.
-    const applyProducerState = ({ producerId, kind, paused }) => {
-      setRemoteStreams((prev) =>
-        prev.map((rs) => {
-          if (rs.id !== producerId) return rs;
-          if (kind === 'audio') return { ...rs, isMicOn: !paused };
-          return { ...rs, isCameraOff: paused };
-        })
-      );
-    };
-    const handleProducerPaused = (payload) =>
-      applyProducerState({ ...payload, paused: true });
-    const handleProducerResumed = (payload) =>
-      applyProducerState({ ...payload, paused: false });
-
     const s = getAppSocket();
-    if (s) {
-      s.on(SOCKET_EVENTS.STREAM.NEW_PRODUCER, handleNewProducer);
-      s.on(SOCKET_EVENTS.STREAM.PRODUCER_PAUSED, handleProducerPaused);
-      s.on(SOCKET_EVENTS.STREAM.PRODUCER_RESUMED, handleProducerResumed);
-    }
+    if (s) s.on(SOCKET_EVENTS.STREAM.NEW_PRODUCER, handleNewProducer);
     return () => {
       const s2 = getAppSocket();
-      if (s2) {
-        s2.off(SOCKET_EVENTS.STREAM.NEW_PRODUCER, handleNewProducer);
-        s2.off(SOCKET_EVENTS.STREAM.PRODUCER_PAUSED, handleProducerPaused);
-        s2.off(SOCKET_EVENTS.STREAM.PRODUCER_RESUMED, handleProducerResumed);
-      }
+      if (s2) s2.off(SOCKET_EVENTS.STREAM.NEW_PRODUCER, handleNewProducer);
       resourcesRef.current.forEach(({ transport, consumer }) => {
         consumer.close();
         transport.close();
@@ -158,7 +115,7 @@ export default function PlayerScreen({ streamId, gameType }) {
             giftCount={33}
             viewerCount={22}
             streamTitle={'egsefgd'}
-            onPowerPress={() => logger.info('power')}
+            onPowerPress={() => console.log('power')}
             streams={[
               {
                 stream: localStream,
@@ -201,17 +158,17 @@ export default function PlayerScreen({ streamId, gameType }) {
               {
                 id: 'settings',
                 icon: SettingsIcon,
-                onPress: () => logger.info('settings'),
+                onPress: () => console.log('settings'),
               },
               {
                 id: 'camera',
                 icon: CameraIcon,
-                onPress: () => logger.info('camera'),
+                onPress: () => console.log('camera'),
               },
               {
                 id: 'speaker',
                 icon: SpeakerIcon,
-                onPress: () => logger.info('speaker'),
+                onPress: () => console.log('speaker'),
               },
             ]}
           ></RemoteGame>
@@ -222,7 +179,7 @@ export default function PlayerScreen({ streamId, gameType }) {
             giftCount={33}
             viewerCount={22}
             streamTitle={'egsefgd'}
-            onPowerPress={() => logger.info('power')}
+            onPowerPress={() => console.log('power')}
             mainStream={localStream}
             players={[
               {
@@ -254,17 +211,17 @@ export default function PlayerScreen({ streamId, gameType }) {
               {
                 id: 'settings',
                 icon: SettingsIcon,
-                onPress: () => logger.info('settings'),
+                onPress: () => console.log('settings'),
               },
               {
                 id: 'camera',
                 icon: CameraIcon,
-                onPress: () => logger.info('camera'),
+                onPress: () => console.log('camera'),
               },
               {
                 id: 'speaker',
                 icon: SpeakerIcon,
-                onPress: () => logger.info('speaker'),
+                onPress: () => console.log('speaker'),
               },
             ]}
           ></CloseUpGame>

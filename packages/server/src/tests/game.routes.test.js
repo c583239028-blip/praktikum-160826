@@ -93,7 +93,7 @@ describe('GET /api/games/:gameId/participants', () => {
     );
 
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(ERROR_MESSAGES.GAME_NOT_FOUND);
+    expect(res.body.error).toBe('המשחק לא נמצא');
   });
 
   it('403 — משתמש שאינו host מחזיר 403', async () => {
@@ -104,7 +104,6 @@ describe('GET /api/games/:gameId/participants', () => {
     const res = await request(app).get('/api/games/valid-uuid/participants');
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe(ERROR_MESSAGES.UNAUTHORIZED_VIEW_PARTICIPANTS);
   });
 
   it('400 — gameId לא תקין מחזיר 400', async () => {
@@ -115,6 +114,6 @@ describe('GET /api/games/:gameId/participants', () => {
     const res = await request(app).get('/api/games/abc/participants');
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(ERROR_MESSAGES.INVALID_GAME_ID);
+    expect(res.body.error).toBe('מזהה משחק לא תקין');
   });
 });

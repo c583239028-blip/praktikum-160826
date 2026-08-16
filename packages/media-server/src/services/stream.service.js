@@ -1,443 +1,270 @@
 /**
  * stream.service.js (media-server)
  *
- * מנהל את מחזור החיים של מקורות המדיה בכל שידור.
- * יוצר PlainTransports ו-Consumers, מקצה פורטי RTP,
- * שומר את מקורות המשתתפים ומתאם הפעלה ועצירה של FFmpeg.
+ * מנוע ה-HLS — מנהל תהליכי FFmpeg לכל שידור חי.
+ * מקבל RTP מ-mediasoup, כותב קבצי HLS לדיסק, ומנקה בסיום.
  *
  * זרימת עבודה:
- *   1. startRecording(video) → שומר input וממתין לאודיו
- *   2. startRecording(audio) → שומר input ומנסה להפעיל FFmpeg
- *   3. stopRecording         → עוצר FFmpeg ומנקה את כל משאבי המדיה
+ *   1. startRecording(video) → יוצר state + מחכה 3 שניות לאודיו
+ *   2. startRecording(audio) → מבטל טיימר ומפעיל FFmpeg מיד
+ *   3. stopRecording       → הורג FFmpeg, סוגר consumers, מוחק תיקייה
  *
- * תלוי ב:
- *   mediasoup.service.js
- *   port-pool.service.js
- *   ffmpeg.service.js
+ * מתקשר עם: mediasoup (PlainTransport, Consumer), FFmpeg (child_process), fs (HLS segments)
+ * תלוי ב:   mediasoup.service.js
+ * משמש את:  socket handlers בשרת המדיה
  *
- * משמש את:
- *   socket handlers בשרת המדיה
+ * TODO: port assignment אקראי (Math.random) — עלול לגרום קולוזיות, כדאי מנגנון pool
  */
-
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { createPlainTransportForFFmpeg } from './mediasoup.service.js';
-import { rtpPortPool } from './port-pool.service.js';
-import { FFmpegService } from './ffmpeg.service.js';
-import { HlsPlaylistService } from './hls-playlist.service.js';
-import { logger } from '../utils/logger.js';
-import { MODERATOR_ROLE } from '../constants/roles.js';
-import { ERROR_MESSAGES, isValidStreamId } from '@worldplay/shared';
-
-const STREAMS_BASE_PATH = '/usr/src/app/packages/media-server/public/streams';
-
-const LOCAL_RTP_IP = '127.0.0.1';
-const AUDIO_WAIT_TIMEOUT_MS = 3000;
-const KEYFRAME_REQUEST_DELAY_MS = 1000;
 
 const activeStreams = new Map();
-const ffmpegTimers = new Map();
-
-const clearFFmpegTimer = (streamId) => {
-  const timer = ffmpegTimers.get(streamId);
-
-  if (!timer) {
-    return;
-  }
-
-  clearTimeout(timer);
-  ffmpegTimers.delete(streamId);
-};
 
 const ensureDirectory = (streamId) => {
-  // הגנת עומק אחרונה לפני fs: streamId מגיע במקור מהקליינט, ו-path.join
-  // עם '../' חורג מ-STREAMS_BASE_PATH (path traversal). חוסמים כל מה שאינו UUID.
-  if (!isValidStreamId(streamId)) {
-    throw new Error(ERROR_MESSAGES.INVALID_STREAM_ID);
-  }
-
-  const streamPath = path.join(STREAMS_BASE_PATH, streamId);
-
+  const streamPath = path.join(
+    '/usr/src/app/packages/media-server/public/streams',
+    streamId
+  );
   if (!fs.existsSync(streamPath)) {
     fs.mkdirSync(streamPath, { recursive: true });
     fs.chmodSync(streamPath, 0o777);
   }
-
   return streamPath;
 };
 
-const createStreamState = (streamId) => {
-  const streamPath = ensureDirectory(streamId);
+const createUnifiedSDP = (streamPath, videoPort, audioPort) => {
+  const ip = '127.0.0.1';
+  let sdp = `v=0
+o=- 0 0 IN IP4 ${ip}
+s=Mediasoup
+c=IN IP4 ${ip}
+t=0 0
+m=video ${videoPort} RTP/AVP 101
+a=rtpmap:101 VP8/90000
+a=rtcp-mux
+`;
 
-  HlsPlaylistService.initialize(streamId, streamPath);
+  if (audioPort) {
+    sdp += `m=audio ${audioPort} RTP/AVP 111
+a=rtpmap:111 opus/48000/2
+a=rtcp-mux
+`;
+  }
 
-  return {
-    inputs: new Map(),
-    ffmpegService: new FFmpegService({
-      streamId,
-      streamPath,
-    }),
-    streamPath,
-    isStopping: false,
-    isRestarting: false,
-  };
+  const sdpPath = path.join(streamPath, 'input.sdp');
+  fs.writeFileSync(sdpPath, sdp);
+  return sdpPath;
 };
 
-const createParticipantInput = (participantId, role) => ({
-  participantId,
-  role,
-  video: null,
-  audio: null,
-});
+const spawnFFmpeg = (sdpPath, streamPath, streamId, hasAudio) => {
+  const args = [
+    '-loglevel',
+    'info',
+    '-protocol_whitelist',
+    'rtp,udp,file,crypto,data,pipe',
+    '-fflags',
+    '+genpts+discardcorrupt+nobuffer',
+    '-probesize',
+    '32', // הקטנה משמעותית כדי להתחיל מיד
+    '-analyzeduration',
+    '0', // ביטול ניתוח דאטה מקדים
+    '-f',
+    'sdp',
+    '-i',
+    sdpPath,
+    // מיפוי ערוצים
+    '-map',
+    '0:v:0',
+  ];
 
-const closeMediaResource = (mediaResource) => {
-  if (!mediaResource) {
-    return;
+  if (hasAudio) {
+    args.push('-map', '0:a:0');
   }
 
-  if (!mediaResource.consumer.closed) {
-    mediaResource.consumer.close();
-  }
+  args.push(
+    // הגדרות וידאו (מהירות מקסימלית)
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    '-tune',
+    'zerolatency',
+    '-pix_fmt',
+    'yuv420p',
 
-  if (!mediaResource.transport.closed) {
-    mediaResource.transport.close();
-  }
+    // הגדרות Keyframes - קריטי למניעת תקיעות ו"Keyframe missing"
+    '-g',
+    '15', // Keyframe כל 15 פריימים (סופר מהיר)
+    '-keyint_min',
+    '15',
+    '-sc_threshold',
+    '0', // מנטרל זיהוי סצנות כדי להכריח Keyframes קבועים
 
-  rtpPortPool.release(mediaResource.port);
-};
+    // הגדרות אודיו (AAC נתמך הכי טוב ב-HLS)
+    '-c:a',
+    'aac',
+    '-ar',
+    '44100',
+    '-ac',
+    '2',
+    '-b:a',
+    '128k',
 
-const replaceMediaResource = (participantInput, kind, nextMediaResource) => {
-  const previousMediaResource = participantInput[kind];
-
-  if (previousMediaResource) {
-    closeMediaResource(previousMediaResource);
-  }
-
-  participantInput[kind] = nextMediaResource;
-};
-
-const closeParticipantMediaResources = (participantInput) => {
-  closeMediaResource(participantInput.video);
-  closeMediaResource(participantInput.audio);
-
-  participantInput.video = null;
-  participantInput.audio = null;
-};
-
-const closeStreamMediaResources = (state) => {
-  for (const participantInput of state.inputs.values()) {
-    closeParticipantMediaResources(participantInput);
-  }
-
-  state.inputs.clear();
-};
-
-const buildActiveInputs = (state) => {
-  const activeInputs = [];
-
-  for (const participantInput of state.inputs.values()) {
-    if (participantInput.video) {
-      activeInputs.push({
-        participantId: participantInput.participantId,
-        role: participantInput.role,
-        kind: 'video',
-        port: participantInput.video.port,
-        consumer: participantInput.video.consumer,
-      });
-    }
-
-    if (participantInput.audio) {
-      activeInputs.push({
-        participantId: participantInput.participantId,
-        role: participantInput.role,
-        kind: 'audio',
-        port: participantInput.audio.port,
-        consumer: participantInput.audio.consumer,
-      });
-    }
-  }
-
-  return activeInputs;
-};
-
-const requestVideoKeyframes = (streamId) => {
-  const state = activeStreams.get(streamId);
-
-  if (!state) {
-    return;
-  }
-
-  const videoInputs = buildActiveInputs(state).filter(
-    (input) => input.kind === 'video'
+    // הגדרות HLS
+    '-f',
+    'hls',
+    '-hls_time',
+    '2',
+    '-hls_list_size',
+    '3',
+    '-hls_flags',
+    'delete_segments',
+    path.join(streamPath, 'index.m3u8')
   );
 
-  for (const videoInput of videoInputs) {
-    videoInput.consumer.requestKeyFrame().catch((error) => {
-      logger.error(
-        `Failed to request keyframe for ${videoInput.participantId} ` +
-          `[${streamId}]: ${error.message}`
-      );
-    });
-  }
-};
-
-const handleFFmpegClose = (streamId) => {
-  const state = activeStreams.get(streamId);
-
-  if (!state || state.isStopping) {
-    return;
-  }
-
-  if (state.isRestarting) {
-    state.isRestarting = false;
-    launchFFmpeg(streamId);
-    return;
-  }
-
-  clearFFmpegTimer(streamId);
-  closeStreamMediaResources(state);
-  HlsPlaylistService.teardown(streamId);
-  activeStreams.delete(streamId);
-};
-
-const restartFFmpeg = (streamId) => {
-  const state = activeStreams.get(streamId);
-
-  if (
-    !state ||
-    state.isStopping ||
-    state.isRestarting ||
-    !state.ffmpegService.isRunning()
-  ) {
-    return;
-  }
-
-  state.isRestarting = true;
-  state.ffmpegService.stop();
-};
-
-const launchFFmpeg = (streamId) => {
-  const state = activeStreams.get(streamId);
-
-  if (!state || state.ffmpegService.isRunning()) {
-    return;
-  }
-
-  const activeInputs = buildActiveInputs(state);
-
-  // The moderator is never a main-grid tile (ffmpeg.service.js overlays them
-  // separately), so their video alone can't satisfy the grid — launching
-  // with zero main-video inputs makes buildFFmpegArgs throw synchronously,
-  // which would otherwise crash the whole media-server process from inside
-  // this setTimeout/FFmpeg-close callback.
-  const hasMainVideo = activeInputs.some(
-    (input) => input.kind === 'video' && input.role !== MODERATOR_ROLE
+  console.log(
+    `🚀 [FFMPEG] Spawning process for stream: ${streamId} (Audio: ${hasAudio})`
   );
 
-  if (!hasMainVideo) {
-    return;
-  }
+  const ffmpeg = spawn('ffmpeg', args, {
+    stdio: ['pipe', 'inherit', 'inherit'], // inherit יזרוק את הלוגים ישירות לטרמינל של הדוקר
+  });
 
-  try {
-    state.ffmpegService.start(activeInputs, () => {
-      handleFFmpegClose(streamId);
-    });
-  } catch (error) {
-    logger.error(
-      `Failed to launch FFmpeg for stream ${streamId}: ${error.message}`
-    );
+  ffmpeg.on('error', (err) => {
+    console.error(`❌ FFmpeg Error [${streamId}]:`, err.message);
+  });
 
-    return;
-  }
+  ffmpeg.on('close', (code) => {
+    // קוד 255 או 0 בדרך כלל אומר סגירה יזומה שלנו (SIGKILL/SIGINT)
+    console.log(`🎬 FFmpeg process for ${streamId} closed with code ${code}`);
 
-  HlsPlaylistService.startSync(streamId);
+    // ניקוי המפה במידה והתהליך נסגר מעצמו
+    if (activeStreams.has(streamId)) {
+      activeStreams.delete(streamId);
+    }
+  });
 
-  const hasAudio = activeInputs.some((input) => input.kind === 'audio');
-
-  logger.info(`FFmpeg launch — audio status: ${hasAudio}`);
-
-  setTimeout(() => {
-    requestVideoKeyframes(streamId);
-  }, KEYFRAME_REQUEST_DELAY_MS);
+  return ffmpeg;
 };
+
+// --- הפונקציה הראשית ---
+const ffmpegTimers = new Map();
 
 export const StreamService = {
-  async startRecording({ streamId, router, producer, participantId, role }) {
+  async startRecording(streamId, router, producer) {
     const kind = producer.kind;
 
-    let pendingTransport = null;
-    let pendingPort = null;
-    let participantInput = null;
+    if (!activeStreams.has(streamId)) {
+      activeStreams.set(streamId, {
+        videoConsumer: null,
+        audioConsumer: null,
+        ffmpeg: null,
+        streamPath: ensureDirectory(streamId),
+        videoPort: 11000 + Math.floor(Math.random() * 500),
+        audioPort: 12000 + Math.floor(Math.random() * 500),
+      });
+    }
+
+    const state = activeStreams.get(streamId);
 
     try {
-      if (!activeStreams.has(streamId)) {
-        activeStreams.set(streamId, createStreamState(streamId));
-      }
+      const transport = await createPlainTransportForFFmpeg(router);
+      const targetPort = kind === 'video' ? state.videoPort : state.audioPort;
+      await transport.connect({ ip: '127.0.0.1', port: targetPort });
 
-      const state = activeStreams.get(streamId);
-
-      participantInput = state.inputs.get(participantId);
-
-      if (!participantInput) {
-        participantInput = createParticipantInput(participantId, role);
-
-        state.inputs.set(participantId, participantInput);
-      } else {
-        participantInput.role = role;
-      }
-
-      pendingTransport = await createPlainTransportForFFmpeg(router);
-
-      pendingPort = rtpPortPool.allocate();
-
-      await pendingTransport.connect({
-        ip: LOCAL_RTP_IP,
-        port: pendingPort,
-      });
-
-      const consumer = await pendingTransport.consume({
+      const consumer = await transport.consume({
         producerId: producer.id,
         rtpCapabilities: router.rtpCapabilities,
         paused: false,
       });
 
-      const mediaResource = {
-        producerId: producer.id,
-        consumer,
-        transport: pendingTransport,
-        port: pendingPort,
-      };
+      if (kind === 'video') state.videoConsumer = { consumer, transport };
+      else state.audioConsumer = { consumer, transport };
 
-      replaceMediaResource(participantInput, kind, mediaResource);
-      const shouldRestartFFmpeg = state.ffmpegService.isRunning();
-
-      // From this point the stream state owns the transport and port.
-      pendingTransport = null;
-      pendingPort = null;
-
-      logger.info(
-        `[${kind.toUpperCase()}] Consumer ready for ${participantId}`
+      console.log(
+        `📡 [${kind.toUpperCase()}] Consumer ready on port ${targetPort}`
       );
 
-      if (shouldRestartFFmpeg) {
-        restartFFmpeg(streamId);
-        return;
-      }
+      // --- לוגיקת סנכרון משופרת ---
 
+      // פונקציה פנימית שמפעילה את FFmpeg
+      const launchFFmpeg = () => {
+        const currentState = activeStreams.get(streamId);
+        if (!currentState || currentState.ffmpeg || !currentState.videoConsumer)
+          return;
+
+        // בודקים אם יש אודיו - אם לא, והטיימר לא נגמר, נחכה עוד קצת
+        const hasAudio = !!currentState.audioConsumer;
+
+        const sdpPath = createUnifiedSDP(
+          currentState.streamPath,
+          currentState.videoPort,
+          hasAudio ? currentState.audioPort : null
+        );
+
+        currentState.ffmpeg = spawnFFmpeg(
+          sdpPath,
+          currentState.streamPath,
+          streamId,
+          hasAudio
+        );
+
+        console.log(`🎥 FFmpeg Launch! Audio Status: ${hasAudio}`);
+
+        // נותנים ל-FFmpeg שניה להתאפס ואז מבקשים Keyframe
+        setTimeout(() => {
+          currentState.videoConsumer.consumer.requestKeyFrame().catch(() => {});
+        }, 1000);
+      };
+
+      // אם זה אודיו - הוא כנראה הגיע אחרון, אז ננסה להפעיל מיד
       if (kind === 'audio') {
-        clearFFmpegTimer(streamId);
-        launchFFmpeg(streamId);
-      } else if (kind === 'video') {
-        clearFFmpegTimer(streamId);
-
-        const timer = setTimeout(() => {
-          launchFFmpeg(streamId);
+        if (ffmpegTimers.has(streamId)) {
+          clearTimeout(ffmpegTimers.get(streamId));
           ffmpegTimers.delete(streamId);
-        }, AUDIO_WAIT_TIMEOUT_MS);
-
+        }
+        launchFFmpeg();
+      }
+      // אם זה וידאו - נחכה 3 שניות לאודיו שיגיע
+      else if (kind === 'video') {
+        const timer = setTimeout(() => {
+          launchFFmpeg(); // מפעיל אחרי 3 שניות גם אם אין אודיו
+          ffmpegTimers.delete(streamId);
+        }, 3000);
         ffmpegTimers.set(streamId, timer);
       }
-    } catch (error) {
-      if (pendingTransport && !pendingTransport.closed) {
-        pendingTransport.close();
-      }
-
-      if (pendingPort !== null) {
-        rtpPortPool.release(pendingPort);
-      }
-
-      const state = activeStreams.get(streamId);
-
-      if (
-        state &&
-        participantInput &&
-        !participantInput.video &&
-        !participantInput.audio
-      ) {
-        state.inputs.delete(participantId);
-      }
-
-      if (
-        state &&
-        state.inputs.size === 0 &&
-        !state.ffmpegService.isRunning()
-      ) {
-        activeStreams.delete(streamId);
-      }
-
-      logger.error(`StreamService error: ${error.message}`);
-      throw error;
-    }
-  },
-  async removeRecordingInput({ streamId, producerId }) {
-    const state = activeStreams.get(streamId);
-
-    if (!state) {
-      return;
-    }
-
-    let removedInput = false;
-
-    for (const [participantId, participantInput] of state.inputs.entries()) {
-      for (const kind of ['video', 'audio']) {
-        const mediaResource = participantInput[kind];
-
-        if (mediaResource?.producerId !== producerId) {
-          continue;
-        }
-
-        closeMediaResource(mediaResource);
-        participantInput[kind] = null;
-        removedInput = true;
-
-        if (!participantInput.video && !participantInput.audio) {
-          state.inputs.delete(participantId);
-        }
-
-        break;
-      }
-
-      if (removedInput) {
-        break;
-      }
-    }
-
-    if (!removedInput) {
-      return;
-    }
-
-    if (state.ffmpegService.isRunning()) {
-      restartFFmpeg(streamId);
+    } catch (err) {
+      console.error(`❌ StreamService error:`, err.message);
     }
   },
   async stopRecording(streamId) {
     const state = activeStreams.get(streamId);
+    if (!state) return;
 
-    if (!state) {
-      return;
+    console.log(`🛑 Stopping stream and DELETING folder: ${streamId}`);
+
+    // 1. הריגת ה-FFmpeg
+    if (state.ffmpeg) {
+      state.ffmpeg.kill('SIGKILL');
     }
 
-    state.isStopping = true;
-    clearFFmpegTimer(streamId);
+    // 2. סגירת Consumers
+    if (state.videoConsumer) state.videoConsumer.consumer.close();
+    if (state.audioConsumer) state.audioConsumer.consumer.close();
 
-    logger.info(`Stopping stream and deleting folder: ${streamId}`);
-
-    state.ffmpegService.stop();
-    closeStreamMediaResources(state);
-
+    // 3. מחיקת התיקייה הפיזית מהדיסק
     try {
       if (fs.existsSync(state.streamPath)) {
-        fs.rmSync(state.streamPath, {
-          recursive: true,
-          force: true,
-        });
-
-        logger.success(`Folder deleted: ${state.streamPath}`);
+        // מוחק את התיקייה וכל מה שבתוכה (סגמנטים, m3u8, sdp)
+        fs.rmSync(state.streamPath, { recursive: true, force: true });
+        console.log(`🗑️ Folder deleted: ${state.streamPath}`);
       }
-    } catch (error) {
-      logger.error(`Failed to delete folder: ${error.message}`);
+    } catch (err) {
+      console.error(`❌ Failed to delete folder: ${err.message}`);
     }
-    HlsPlaylistService.teardown(streamId);
+
     activeStreams.delete(streamId);
   },
 };

@@ -5,8 +5,6 @@ import {
   broadcastEconomyEvent,
 } from '../utils/socketHelpers.js';
 import { SOCKET_EVENTS } from '@worldplay/shared';
-import { readFileSync, existsSync, readdirSync } from 'fs';
-import path from 'path';
 
 const { mockFindUniqueUser, mockFindManyParticipants, mockDisconnect } =
   vi.hoisted(() => ({
@@ -200,67 +198,5 @@ describe('broadcastEconomyEvent', () => {
         gameId: 'game-1',
       })
     );
-  });
-});
-
-describe('SCRUM-213 regression guard — no duplicate syncUserBalances', () => {
-  it('balanceSync.js no longer exists', () => {
-    const balanceSyncPath = path.resolve(__dirname, '../utils/balanceSync.js');
-    expect(existsSync(balanceSyncPath)).toBe(false);
-  });
-
-  it('only one definition of syncUserBalances exists in the repo', () => {
-    const srcDir = path.resolve(__dirname, '..');
-    const pattern =
-      /export\s+(async\s+)?function\s+syncUserBalances|export\s+const\s+syncUserBalances/;
-
-    // סריקה רקורסיבית טהורה ב-Node — לא תלויה ב-grep/OS
-    const findMatches = (dir) => {
-      let matches = [];
-      const entries = readdirSync(dir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-
-        if (entry.isDirectory()) {
-          if (entry.name === 'node_modules' || entry.name === '.git') continue;
-          matches = matches.concat(findMatches(fullPath));
-        } else if (entry.isFile() && entry.name.endsWith('.js')) {
-          const content = readFileSync(fullPath, 'utf-8');
-          if (pattern.test(content)) {
-            matches.push(fullPath);
-          }
-        }
-      }
-
-      return matches;
-    };
-
-    const matches = findMatches(srcDir);
-    expect(matches.length).toBe(1);
-  });
-
-  it('economy.controller and userAnswer.service import from socketHelpers, not balanceSync', () => {
-    const files = [
-      '../controller/economy.controller.js',
-      '../services/userAnswer.service.js',
-    ];
-    for (const file of files) {
-      const content = readFileSync(path.resolve(__dirname, file), 'utf-8');
-      expect(content).not.toMatch(/balanceSync/);
-      expect(content).toMatch(/socketHelpers/);
-    }
-  });
-
-  // game.handler no longer syncs balances itself — PLACE_BET delegates the
-  // entire bet flow (including balance sync) to userAnswer.service, so it
-  // has no direct socketHelpers import. It must still never reintroduce
-  // the deprecated balanceSync module.
-  it('game.handler does not reference the deprecated balanceSync module', () => {
-    const content = readFileSync(
-      path.resolve(__dirname, '../sockets/game.handler.js'),
-      'utf-8'
-    );
-    expect(content).not.toMatch(/balanceSync/);
   });
 });

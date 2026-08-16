@@ -1,5 +1,4 @@
 import React, { useEffect, useCallback } from 'react';
-import { logger } from '@worldplay/shared';
 import {
   View,
   Text,
@@ -164,7 +163,7 @@ const InboxScreen = () => {
         {item.type === 'FOLLOW' && item.metadata && !item.metadata.isMutual && (
           <Btn
             label={t('follow_back_button')}
-            onPress={() => logger.info('Follow back logic here')}
+            onPress={() => console.log('Follow back logic here')}
             color={Colors.warning.main}
           />
         )}

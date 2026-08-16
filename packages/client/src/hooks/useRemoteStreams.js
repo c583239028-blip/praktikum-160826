@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SOCKET_EVENTS, logger } from '@worldplay/shared';
+import { SOCKET_EVENTS } from '@worldplay/shared';
 import { MediaStream } from '@livekit/react-native-webrtc';
 import { MediasoupManager } from '../services/MediasoupManager';
 import {
@@ -110,7 +110,7 @@ export function useRemoteStreams({ streamId }) {
         if (!alreadyExists) activeCountRef.current -= 1;
         if (consumer) consumer.close();
         if (transport) transport.close();
-        logger.error(`Failed to consume producer ${producerId}:`, err.message);
+        console.error(`Failed to consume producer ${producerId}:`, err.message);
         return;
       }
 

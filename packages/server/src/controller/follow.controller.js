@@ -1,6 +1,5 @@
 // ניהול קשרי עוקבים בין משתמשים — בסיס לפיד ולחיפוש חברתי
 import followService from '../services/follow.service.js';
-import { logger } from '@worldplay/shared';
 
 const followController = {
   followUser: async (req, res) => {
@@ -16,7 +15,7 @@ const followController = {
         data: result,
       });
     } catch (error) {
-      logger.error('[FOLLOW_ERROR]', error.message);
+      console.error('[FOLLOW_ERROR]', error.message);
       return res.status(400).json({
         success: false,
         message: error.message,
@@ -35,7 +34,7 @@ const followController = {
         data: followers,
       });
     } catch (error) {
-      logger.error('[GET_FOLLOWERS_ERROR]', error.message);
+      console.error('[GET_FOLLOWERS_ERROR]', error.message);
       return res.status(500).json({
         success: false,
         message: 'שגיאה בשליפת רשימת העוקבים',
@@ -55,7 +54,7 @@ const followController = {
         message: 'Successfully unfollowed user',
       });
     } catch (error) {
-      logger.error('[UNFOLLOW_ERROR]', error.message);
+      console.error('[UNFOLLOW_ERROR]', error.message);
       return res.status(400).json({
         success: false,
         message: error.message,

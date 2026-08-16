@@ -13,6 +13,8 @@ router.post('/:id/join', gameController.joinGame);
 router.get('/feed', gameController.getFeed);
 router.get('/history', gameController.getHistory);
 router.patch('/:gameId/pin', gameController.togglePin);
+router.post('/migrate-activities', gameController.migrateActivities);
+router.post('/seed-viewlogs', gameController.seedViewLogs);
 router.get('/:gameId/viewers', gameController.getGameViewers);
 router.get('/:gameId/participants', gameController.getParticipants);
 

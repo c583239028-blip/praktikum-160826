@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { logger } from '@worldplay/shared';
 
 let _logout = null;
 
@@ -40,7 +39,7 @@ export async function apiFetch(url, options = {}) {
 
   if (response.status === 401) {
     if (__DEV__ && !_logout) {
-      logger.warn('apiHelpers: logout handler not set');
+      console.warn('apiHelpers: logout handler not set');
     }
     await _logout?.();
     throw new UnauthorizedError();

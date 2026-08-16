@@ -45,21 +45,12 @@ infisical login
 npm run docker:up     # exports .env via Infisical then runs docker compose
 ```
 
-> **Use `npm run docker:up`, not a raw `docker compose up`.** The local DB port
-> (5432) is published via `docker-compose.local.yml`, which is opt-in and *not*
-> auto-loaded (renamed from `.override.yml` so it can never leak to production —
-> SCRUM-292). The npm scripts pass it with `-f` for you; a raw `docker compose up`
-> will not expose 5432 to the host.
-
 This starts:
 
 - `db` — PostgreSQL 15
 - `app-server` — API & game backend (port 8080)
 - `media-server` — Mediasoup + FFmpeg (port 8000, UDP 10000–10020)
-
-`prisma-studio` (Visual DB browser) is opt-in and not started by `docker:up`:
-run `docker compose --profile studio up -d prisma-studio`. It binds to
-`127.0.0.1:5556`, reachable only via an SSH tunnel to the host.
+- `prisma-studio` — Visual DB browser (port 5556)
 
 ### 4. Individual package development
 
@@ -77,7 +68,7 @@ cd packages/client && npm start   # Expo dev server
 | -------------- | ------------------------------------------------------------------------ |
 | `client`       | Expo mobile app — feed, auth, game screens, WebRTC, design system        |
 | `media-server` | Mediasoup SFU + FFmpeg HLS — dual-stream architecture with pause logic   |
-| `server`       | REST API, Socket.IO, Prisma migrations, in-app purchases (IAP), social auth, analytics |
+| `server`       | REST API, Socket.IO, Prisma migrations, payments, social auth, analytics |
 | `shared`       | Zod validation schemas + typed Socket.IO event name constants            |
 
 ---
@@ -103,9 +94,9 @@ cd packages/client && npm start   # Expo dev server
 
 ## Contributing
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for coding conventions (naming, SRP, DRY) and how the lint/format tooling is enforced.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coding conventions (naming, SRP, DRY) and how the lint/format tooling is enforced.
 
-**Before opening a PR**, run through the systemic self-review checklist in [CHECKLIST.md](docs/CHECKLIST.md) — it covers which layers your change touches, DB/migrations, error handling, real-time/media, roles & authorization, secrets, whether new infra has a real consumer, and quality. The matching fill-in form **auto-populates every new PR's description** from `.github/pull_request_template.md`: answer it inside the PR description (not as a committed file), so there are no merge conflicts and no documents pile up in the repo. New team members: start from [ONBOARDING.md](docs/ONBOARDING.md).
+**Before opening a PR**, run through the systemic self-review checklist in [CHECKLIST.md](CHECKLIST.md) — it covers which layers your change touches, DB/migrations, error handling, real-time/media, roles & authorization, secrets, and quality. The matching fill-in form **auto-populates every new PR's description** from `.github/pull_request_template.md`: answer it inside the PR description (not as a committed file), so there are no merge conflicts and no documents pile up in the repo. New team members: start from [ONBOARDING.md](ONBOARDING.md).
 
 ---
 
@@ -121,6 +112,7 @@ MEDIA_PORT=8000
 DATABASE_URL=postgresql://...
 POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
 TOKEN_SECRET
+STRIPE_SECRET_KEY / STRIPE_PUBLIC_KEY / STRIPE_WEBHOOK_SECRET
 FIREBASE_* (service account config)
 ANNOUNCED_IP          # media-server WebRTC announced IP
 ```
@@ -135,4 +127,4 @@ ANNOUNCED_IP          # media-server WebRTC announced IP
 
 ---
 
-_Last updated: 2026-07-29_
+_Last updated: 2026-06-08_

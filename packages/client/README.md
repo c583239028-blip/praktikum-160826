@@ -18,9 +18,6 @@ npm run web        # start web version
 
 `sync-env` runs automatically before each command — it copies `.env.development` (or `.env`) from the repo root into `packages/client/.env` so the app always has the latest secrets.
 
-Behind a Netfree-filtered network, Google Sign-In needs extra setup — see
-[docs/google-oauth-netfree.md](../../docs/ops/google-oauth-netfree.md).
-
 ---
 
 ## Directory Layout
@@ -187,14 +184,15 @@ $env:APP_ENV="development"; npx expo config --type introspect
 
 ## Key Dependencies
 
-| Package             | Purpose                          |
-| ------------------- | -------------------------------- |
-| `expo-router` ~6    | File-based navigation            |
-| `@reduxjs/toolkit`  | State management                 |
-| `firebase` 12       | Client-side auth                 |
-| `mediasoup-client`  | WebRTC SFU client                |
-| `socket.io-client`  | Real-time events                 |
-| `@worldplay/shared` | Shared schemas + event constants |
+| Package                       | Purpose                          |
+| ----------------------------- | -------------------------------- |
+| `expo-router` ~6              | File-based navigation            |
+| `@reduxjs/toolkit`            | State management                 |
+| `firebase` 12                 | Client-side auth                 |
+| `mediasoup-client`            | WebRTC SFU client                |
+| `socket.io-client`            | Real-time events                 |
+| `@stripe/stripe-react-native` | In-app payments                  |
+| `@worldplay/shared`           | Shared schemas + event constants |
 
 ---
 

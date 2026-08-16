@@ -2,15 +2,41 @@ import React, { useState } from 'react';
 import { View, Text, Modal, StyleSheet, ScrollView } from 'react-native';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
-// eslint-disable-next-line no-unused-vars -- used by the commented server-load block below (M6-04)
-import { logger } from '@worldplay/shared';
 import { Colors, Spacing } from '../../../../constants/design';
 import { QuestionsScreenHeader } from './QuestionsScreenHeader';
 import { DraftQuestionCard } from './DraftQuestionCard';
 import { EditQuestionForm } from './EditQuestionForm';
 import { AdvancedOptionsSheet } from './AdvancedOptionsSheet';
-// Loading drafts from the server is M6-04 — questionsApi already exists; wire
-// the commented useEffect below to questionsApi.getDrafts() there.
+// import { questionsApi } from '../../../../services/questionsApi'; // TODO: uncomment once API client is ready
+
+// ─── MOCK DATA ──────────────────────────────────────────────────────────────
+// TEMP: used while there is no running server / no API client yet.
+// DELETE this block before pushing to git, once server calls below are live.
+const MOCK_QUESTIONS = [
+  {
+    id: '1',
+    authorName: 'Shira Cohen',
+    text: 'What is your favorite way to spend a weekend?',
+    answers: [
+      { id: '0', text: 'Outdoors / hiking' },
+      { id: '1', text: 'Reading at home' },
+      { id: '2', text: 'Hanging out with friends' },
+      { id: '3', text: 'Watching movies' },
+    ],
+  },
+  {
+    id: '2',
+    authorName: 'Dan Levi',
+    text: 'Which season do you enjoy the most?',
+    answers: [
+      { id: '0', text: 'Summer' },
+      { id: '1', text: 'Winter' },
+      { id: '2', text: 'Spring' },
+      { id: '3', text: 'Fall' },
+    ],
+  },
+];
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * DraftQuestionsList
@@ -26,9 +52,10 @@ import { AdvancedOptionsSheet } from './AdvancedOptionsSheet';
  */
 export function DraftQuestionsList({ questions: initialQuestions, onClose }) {
   const { t } = useTranslation('question');
-  // Data comes from the consumer (ModeratorScreen passes `questions`); empty
-  // until the caller supplies drafts. Server load is the commented block below.
-  const [questions, setQuestions] = useState(initialQuestions ?? []);
+  // TEMP: falls back to MOCK_QUESTIONS when no prop is passed (no server yet).
+  const [questions, setQuestions] = useState(
+    initialQuestions ?? MOCK_QUESTIONS
+  );
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [advancedQuestion, setAdvancedQuestion] = useState(null);
 
@@ -39,7 +66,7 @@ export function DraftQuestionsList({ questions: initialQuestions, onClose }) {
   //         .then((data) => {
   //             if (isMounted) setQuestions(data);
   //         })
-  //         .catch((err) => logger.error('Failed to load draft questions:', err));
+  //         .catch((err) => console.error('Failed to load draft questions:', err));
   //     return () => { isMounted = false; };
   // }, []);
 
@@ -59,7 +86,7 @@ export function DraftQuestionsList({ questions: initialQuestions, onClose }) {
     );
 
     // questionsApi.updateQuestion(editingQuestion.id, { text: questionText, answers: updatedAnswers })
-    //     .catch((err) => logger.error('Failed to save question edit:', err));
+    //     .catch((err) => console.error('Failed to save question edit:', err));
 
     setEditingQuestion(null);
   };
@@ -68,7 +95,7 @@ export function DraftQuestionsList({ questions: initialQuestions, onClose }) {
     setQuestions((prev) => prev.filter((q) => q.id !== questionId));
 
     // questionsApi.deleteQuestion(questionId)
-    //     .catch((err) => logger.error('Failed to delete question:', err));
+    //     .catch((err) => console.error('Failed to delete question:', err));
   };
 
   const handlePublish = (questionId) => {
@@ -76,14 +103,14 @@ export function DraftQuestionsList({ questions: initialQuestions, onClose }) {
     //     .then(() => {
     //         setQuestions(prev => prev.filter(q => q.id !== questionId));
     //     })
-    //     .catch((err) => logger.error('Failed to publish question:', err));
+    //     .catch((err) => console.error('Failed to publish question:', err));
   };
 
   const handleAdvanced = (question) => setAdvancedQuestion(question);
 
   const handleSaveAdvanced = (seconds) => {
     // questionsApi.setTimeLimit(advancedQuestion?.id, seconds)
-    //     .catch((err) => logger.error('Failed to save time limit:', err));
+    //     .catch((err) => console.error('Failed to save time limit:', err));
   };
 
   return (

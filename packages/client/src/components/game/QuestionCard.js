@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
-import Card from './ui/Card';
-import Btn from './ui/Btn';
+import Card from './Card';
+import Btn from './Btn';
 import {
   Colors,
   FontFamily,
@@ -26,7 +26,7 @@ const QuestionCard = ({ question, onWager }) => {
   };
 
   const handlePlaceholderWagerPress = () => {
-    // TODO S4: SCRUM-282 wager drag mechanic (SPEC §6.3 C5). Viewer will drag the
+    // TODO S4: wager drag mechanic (SPEC §6.3 C5). Viewer will drag the
     // matching Currency Bank icon onto the chosen option instead of tapping
     // this button. Do not build the drag mechanic here — placeholder only.
     if (selectedOptionId && onWager) {
@@ -39,7 +39,7 @@ const QuestionCard = ({ question, onWager }) => {
       <View style={styles.questionHeader}>
         <Text style={styles.questionText}>{question.questionText}</Text>
 
-        {/* TODO S4:SCRUM-283 .TimerBar countdown ring goes here (Priority 2, Out of scope for S4)  */}
+        {/* TODO S4: TimerBar countdown ring goes here (Priority 2, Out of scope for S4) */}
       </View>
 
       <View style={styles.optionsList}>

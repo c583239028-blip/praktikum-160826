@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
-import { logger } from '@worldplay/shared';
 import { Colors, Spacing, BorderRadius, TextStyles } from '@/constants/design';
 import { RegisterButton } from './RegisterButton';
 import CloseIcon from '@/assets/icons/close.svg';
@@ -16,7 +15,7 @@ import FacebookIcon from '@/assets/icons/facebook.svg';
 import XIcon from '@/assets/icons/x.svg';
 import InstagramIcon from '@/assets/icons/instagram.svg';
 import PropTypes from 'prop-types';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,40 +23,40 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-// Missing client IDs are a permanent failure, not a slow one — this is just long
-// enough that a healthy request always wins the race.
-const AUTH_REQUEST_TIMEOUT_MS = 5000;
-
 export default function LazyAuthModal({ visible, onClose }) {
   const { t } = useTranslation('auth');
 
   const { socialLogin } = useAuth();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState(null);
-  // Kept separate from authError so it can clear itself once the request arrives.
-  const [authUnavailable, setAuthUnavailable] = useState(false);
 
-  // Don't call onClose() here: once socialLogin flips isGuest→false, useAuthGuard's
-  // effect runs the pending action (the deferred navigation) and closes the modal.
-  // Closing here would clear pendingActionRef first and lose that action.
+  // Google ID token -> register/login on our server -> close the modal.
+  // TODO (T50 — unblock after Netfree/Google OAuth is fixed):
+  // Race condition: calling onClose() here clears pendingActionRef in useAuthGuard
+  // before its useEffect fires, so the deferred action (e.g. a bet) is lost.
+  // Fix: remove the explicit onClose() call — useAuthGuard's useEffect already
+  // closes the modal and executes the pending action when isGuest flips to false.
   const handleGoogleSuccess = useCallback(
     async (firebaseToken) => {
+      console.log('🟢 [T50] Firebase token התקבל, שולח לשרת (socialLogin)...');
       try {
         setIsAuthenticating(true);
         await socialLogin(firebaseToken);
+        console.log('🎉 [T50] רישום/התחברות בשרת הצליחו — סוגר את המודל.');
+        onClose();
       } catch (error) {
-        logger.error('Social login failed:', error?.message || error);
+        console.error('❌ [T50] שגיאת רישום בשרת:', error?.message || error);
         setAuthError(t('login_failed'));
       } finally {
         setIsAuthenticating(false);
       }
     },
-    [socialLogin, t]
+    [socialLogin, onClose, t]
   );
 
   const handleGoogleError = useCallback(
     (err) => {
-      logger.error('Google sign-in error:', err?.message || err);
+      console.error('❌ [T50] שגיאת התחברות Google:', err?.message || err);
       setAuthError(t('login_failed'));
       setIsAuthenticating(false);
     },
@@ -71,46 +70,35 @@ export default function LazyAuthModal({ visible, onClose }) {
     }
   );
 
-  // If the client IDs are missing the request never arrives, leaving a silently dead button.
-  useEffect(() => {
-    if (!visible) {
-      setAuthError(null);
-      setAuthUnavailable(false);
-      return;
-    }
-    if (googleRequest) {
-      setAuthUnavailable(false);
-      return;
-    }
-    const timer = setTimeout(
-      () => setAuthUnavailable(true),
-      AUTH_REQUEST_TIMEOUT_MS
-    );
-    return () => clearTimeout(timer);
-  }, [visible, googleRequest]);
-
-  const handleGoogleLogin = async () => {
+  const handleSocialLogin = async (provider) => {
     setAuthError(null);
-    // Spinner shows only once the token comes back (see handleGoogleSuccess);
-    // the native Google account picker is in the foreground during the prompt.
-    try {
+    if (provider === 'Google') {
+      console.log('👆 [T50] לחיצה על Continue with Google — פותח התחברות...');
+      // Spinner is shown only once the token comes back (see handleGoogleSuccess);
+      // the browser is in the foreground during the prompt itself.
       await promptGoogle();
-    } catch (error) {
-      // Backstop only — sign-in failures are reported through onError (handleGoogleError).
-      logger.error('Google prompt failed:', error?.message || error);
-      setAuthError(t('login_failed'));
+      console.log('🔁 [T50] חזרנו מהדפדפן (promptAsync הסתיים).');
+      return;
     }
+    // TODO (T50 — Apple, unblock after Netfree/Google is fixed and flow is verified):
+    // Apple (T39): authService.loginWithApple() is implemented in auth.service.js.
+    // To wire it here using the same pattern as Google, split loginWithApple into
+    // two steps: (1) Apple OAuth → Firebase credential → firebaseToken, then
+    // (2) call socialLogin(firebaseToken). Currently loginWithApple() does both
+    // steps internally and returns the server response, which bypasses socialLogin
+    // in AuthContext. Refactor or create a useAppleSignIn hook analogous to
+    // useGoogleSignIn. iOS only (Platform.OS === 'ios' guard already in place).
+    //
+    // TODO (T50 — Facebook, deferred to later sprint per product decision):
+    // Facebook login is explicitly deferred. No implementation needed now.
+    //
+    // X / Instagram: not in original ticket scope, no implementation planned.
+    console.log(`🚫 [T50] ${provider} עדיין לא ממומש.`);
+    setAuthError(t('login_failed'));
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      // Back stays live even mid-authentication: socialLogin has no timeout, so
-      // blocking the exit here would trap the guest behind a hung request (SCRUM-55 review).
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <View style={styles.popup}>
           <TouchableOpacity
@@ -150,21 +138,11 @@ export default function LazyAuthModal({ visible, onClose }) {
                 {t('social_options_label')}
               </Text>
               <View style={styles.buttonsList}>
-                {/* Disabled until the native Google client finishes configuring
-                    (a frame or two) — an early tap would be a silent no-op. */}
                 <RegisterButton
                   icon={GoogleIcon}
                   label={t('google_button')}
-                  onPress={handleGoogleLogin}
-                  disabled={!googleRequest}
+                  onPress={() => handleSocialLogin('Google')}
                 />
-                {/* Apple/Facebook/X/Instagram are stubs. Wiring Apple is not a
-                    one-liner: authService.loginWithApple() (auth.service.js) does
-                    Apple OAuth → Firebase credential → server call internally and
-                    returns the server response, bypassing socialLogin() in
-                    AuthContext. It must be split into (1) get firebaseToken and
-                    (2) socialLogin(firebaseToken) — i.e. a useAppleSignIn hook
-                    mirroring useGoogleSignIn. Facebook is deferred by product. */}
                 {Platform.OS === 'ios' && (
                   <RegisterButton
                     icon={AppleIcon}
@@ -188,11 +166,7 @@ export default function LazyAuthModal({ visible, onClose }) {
                   onPress={() => {}}
                 />
               </View>
-              {(authError || authUnavailable) && (
-                <Text style={styles.errorText}>
-                  {authError ?? t('auth_unavailable')}
-                </Text>
-              )}
+              {authError && <Text style={styles.errorText}>{authError}</Text>}
             </View>
           )}
         </View>

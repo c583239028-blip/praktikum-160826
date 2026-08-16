@@ -16,8 +16,6 @@
  */
 import prisma from '../lib/prisma.js';
 import { ERROR_MESSAGES } from '@worldplay/shared';
-import { UserRole } from '@prisma/client';
-import { logger } from '@worldplay/shared';
 
 const permissionsService = {
   async validateRole(gameId, userId, requiredRole) {
@@ -37,7 +35,7 @@ const permissionsService = {
     });
 
     if (!participant) {
-      logger.warn(
+      console.warn(
         `Permission denied: ${userId} has no ${requiredRole} role in game ${gameId}`
       );
       throw new Error(ERROR_MESSAGES.UNAUTHORIZED);
@@ -45,12 +43,10 @@ const permissionsService = {
 
     // HOST יכול לעשות הכל מה שMODERATOR יכול
     const allowedRoles =
-      requiredRole === UserRole.MODERATOR
-        ? [UserRole.MODERATOR, UserRole.HOST]
-        : [requiredRole];
+      requiredRole === 'MODERATOR' ? ['MODERATOR', 'HOST'] : [requiredRole];
 
     if (!allowedRoles.includes(participant.role)) {
-      logger.warn(
+      console.warn(
         `Permission denied: ${userId} role=${participant.role}, required=${requiredRole}`
       );
       throw new Error(ERROR_MESSAGES.UNAUTHORIZED);
@@ -60,34 +56,11 @@ const permissionsService = {
   },
 
   async ensureHost(gameId, userId) {
-    return this.validateRole(gameId, userId, UserRole.HOST);
+    return this.validateRole(gameId, userId, 'HOST');
   },
 
   async ensureModerator(gameId, userId) {
-    return this.validateRole(gameId, userId, UserRole.MODERATOR);
-  },
-
-  // דורש שהמשתמש הוא משתתף במשחק בכל תפקיד (כולל VIEWER/PLAYER) — בלי אכיפת תפקיד.
-  // משמש מסלולים שפתוחים לכל משתתף אך חסומים לזרים, למשל שליחת שאלת צופה (Q1b).
-  async ensureParticipant(gameId, userId) {
-    if (!gameId || !userId) {
-      throw new Error(
-        ERROR_MESSAGES.MISSING_GAME_OR_USER_ID_FOR_PERMISSION_CHECK
-      );
-    }
-
-    const participant = await prisma.gameParticipant.findUnique({
-      where: { gameId_userId: { gameId, userId } },
-    });
-
-    if (!participant) {
-      logger.warn(
-        `Permission denied: ${userId} is not a participant in game ${gameId}`
-      );
-      throw new Error(ERROR_MESSAGES.NOT_GAME_PARTICIPANT);
-    }
-
-    return participant;
+    return this.validateRole(gameId, userId, 'MODERATOR');
   },
 
   async ensureStreamHost(streamId, userId) {

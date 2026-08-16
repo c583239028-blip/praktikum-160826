@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PropTypes from 'prop-types';
-// NOTE: react-redux (useDispatch/useSelector) is added back when watchersSlice
-// is wired (M7-03); see the commented selectors/dispatch below.
+import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import {
   Colors,
@@ -365,6 +364,7 @@ const ConnectionsList = ({ gameId, userId, username, onBack, initialTab }) => {
   );
   const loading = false;
   const error = null;
+  // END DEV MOCK
 
   // ---------------------------------------------------------------------------
   // Fetch on mount and on tab change

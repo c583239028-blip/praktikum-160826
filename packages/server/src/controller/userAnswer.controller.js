@@ -1,7 +1,6 @@
 // הגשת תשובות לשאלות — ולידציה עם Zod, טרנזקציה כלכלית וסנכרון ארנק
 import userAnswerService from '../services/userAnswer.service.js';
 import { SubmitAnswerSchema } from '../../../shared/src/index.js';
-import { logger } from '@worldplay/shared';
 
 const userAnswerController = {
   async submit(req, res) {
@@ -31,7 +30,7 @@ const userAnswerController = {
       }
 
       // 402 לשגיאות תשלום (אין מספיק כסף)
-      logger.error(`[Answer Controller Error]: ${error.message}`);
+      console.error(`[Answer Controller Error]: ${error.message}`);
       return res.status(402).json({ error: error.message });
     }
   },

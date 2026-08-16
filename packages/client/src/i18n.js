@@ -24,6 +24,8 @@ import enInvitation from './locales/en/invitation.json';
 import enGame from './locales/en/game.json';
 import enModerator from './locales/en/moderator.json';
 import enWatchers from './locales/en/watchers.json';
+import enBroadcast from './locales/en/broadcast.json';
+import enConnections from './locales/en/connections.json';
 
 import heHost from './locales/he/host.json';
 import heShop from './locales/he/shop.json';
@@ -44,6 +46,8 @@ import heCommon from './locales/he/common.json';
 import heQuestion from './locales/he/question.json';
 import heWatchers from './locales/he/watchers.json';
 import heModerator from './locales/he/moderator.json';
+import heBroadcast from './locales/he/broadcast.json';
+import heConnections from './locales/he/connections.json';
 
 const LANGUAGE_KEY = 'user-language';
 const SUPPORTED_LANGUAGES = ['en', 'he'];
@@ -367,6 +371,8 @@ i18n
         invitation: enInvitation,
         game: enGame,
         moderator: enModerator,
+        broadcast: enBroadcast,
+        connections: enConnections,
       },
       he: {
         question: heQuestion,
@@ -388,6 +394,8 @@ i18n
         invitation: heInvitation,
         game: heGame,
         moderator: heModerator,
+        broadcast: heBroadcast,
+        connections: heConnections,
       },
     },
     ns: [
@@ -409,6 +417,8 @@ i18n
       'question',
       'game',
       'moderator',
+      'broadcast',
+      'connections',
     ],
 
     fallbackLng: 'en',

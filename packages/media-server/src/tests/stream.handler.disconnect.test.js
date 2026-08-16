@@ -39,15 +39,6 @@ vi.mock('../services/mediasoup.service.js', () => ({
 }));
 
 vi.mock('@worldplay/shared', () => ({
-  // streamId UUID validation is covered in stream.service.sanitize-streamid.test.js;
-  // here we only need the create_room guard to accept well-formed ids.
-  isValidStreamId: () => true,
-  PARTICIPANT_ROLES: {
-    HOST: 'HOST',
-    PLAYER: 'PLAYER',
-    MODERATOR: 'MODERATOR',
-    VIEWER: 'VIEWER',
-  },
   SOCKET_EVENTS: {
     SYSTEM: {
       DISCONNECT: 'disconnect',
@@ -62,15 +53,11 @@ vi.mock('@worldplay/shared', () => ({
       ENDED: 'stream:ended',
     },
   },
-  MAX_ACTIVE_PLAYERS: 4,
 }));
 
 import { registerStreamHandlers, streams } from '../sockets/stream.handler.js';
 import * as msService from '../services/mediasoup.service.js';
-import { StreamService } from '../services/stream.service.js';
 import { SOCKET_EVENTS } from '@worldplay/shared';
-import prisma from '../lib/prisma.js';
-import { logger } from '../utils/logger.js';
 
 // ─────────────────────────────────────────────
 // עזר ליצירת socket מזויף עם תפיסת ה-handlers הרשומים
@@ -92,7 +79,6 @@ function createMockSocket(id, userId = 'user-1') {
 function createMockIo() {
   return {
     to: vi.fn().mockReturnValue({ emit: vi.fn() }),
-    sockets: { adapter: { rooms: { get: () => undefined } } },
   };
 }
 
@@ -179,8 +165,7 @@ async function setupRoomWithProducer({
 
 describe('stream.handler — ניתוק שחקן בודד (PRODUCER_CLOSED)', () => {
   let io;
-  // Real Stream.id is @default(uuid()); create_room now rejects non-UUIDs.
-  const streamId = 'a0000000-0000-4000-8000-000000000007';
+  const streamId = 'stream-test-1';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -448,102 +433,5 @@ describe('stream.handler — ניתוק שחקן בודד (PRODUCER_CLOSED)', ()
 
     // ✓ לא שודר PRODUCER_CLOSED — הדגל isClosing מנע את ה-emit
     expect(io.to).not.toHaveBeenCalled();
-  });
-});
-
-describe('stream.handler — סיום שידור graceful (STREAM.ENDED) מנקה הקלטה', () => {
-  let io;
-  const streamId = 'a0000000-0000-4000-8000-000000000008';
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockFindFirst.mockResolvedValue({ role: 'PLAYER' });
-    Object.keys(streams).forEach((key) => delete streams[key]);
-    io = createMockIo();
-  });
-
-  // הקמה משותפת לשני הטסטים למטה — host יוצר חדר, בלי producer
-  // (לא נדרש producer כדי לבדוק את התנהגות handleCloseStream עצמה)
-  async function createHostRoom(hostSocket) {
-    registerStreamHandlers(io, hostSocket);
-    const createRoomCb = vi.fn();
-    await hostSocket.handlers[SOCKET_EVENTS.STREAM.CREATE_ROOM](
-      { streamId },
-      createRoomCb
-    );
-    streams[streamId].router = { rtpCapabilities: {}, close: vi.fn() };
-  }
-
-  it('1. לחיצה על "סיום שידור" קוראת ל-StreamService.stopRecording עם ה-streamId הנכון', async () => {
-    const hostSocket = createMockSocket('host-socket-end-1', 'host-user');
-    await createHostRoom(hostSocket);
-
-    await hostSocket.handlers[SOCKET_EVENTS.STREAM.ENDED]();
-
-    expect(StreamService.stopRecording).toHaveBeenCalledWith(streamId);
-    expect(StreamService.stopRecording).toHaveBeenCalledTimes(1);
-  });
-
-  it('2. stopRecording נקרא לפני שהשידור נמחק מהזיכרון (סדר פעולות נכון)', async () => {
-    const hostSocket = createMockSocket('host-socket-end-2', 'host-user');
-    await createHostRoom(hostSocket);
-
-    let streamExistedDuringCleanup = false;
-    StreamService.stopRecording.mockImplementationOnce(async () => {
-      streamExistedDuringCleanup = Boolean(streams[streamId]);
-    });
-
-    await hostSocket.handlers[SOCKET_EVENTS.STREAM.ENDED]();
-
-    expect(streamExistedDuringCleanup).toBe(true);
-    expect(streams[streamId]).toBeUndefined();
-  });
-
-  it('3. אם stopRecording נכשלת, עדכון ה-DB וה-emit לחדר עדיין רצים (הכשל בניקוי לא חוסם את שאר הסגירה)', async () => {
-    const hostSocket = createMockSocket('host-socket-end-3', 'host-user');
-    await createHostRoom(hostSocket);
-
-    StreamService.stopRecording.mockRejectedValueOnce(
-      new Error('disk delete failed')
-    );
-
-    await hostSocket.handlers[SOCKET_EVENTS.STREAM.ENDED]();
-
-    // ✓ הכשל ב-stopRecording לא עצר את עדכון הסטטוס ב-DB
-    expect(prisma.stream.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: streamId },
-        data: expect.objectContaining({ status: 'FINISHED' }),
-      })
-    );
-
-    // ✓ הכשל ב-stopRecording לא עצר את שידור סיום השידור לחדר
-    expect(io.to).toHaveBeenCalledWith(streamId);
-    const emitMock = io.to.mock.results[0].value.emit;
-    expect(emitMock).toHaveBeenCalledWith(
-      SOCKET_EVENTS.STREAM.ENDED,
-      expect.objectContaining({ streamId })
-    );
-
-    // ✓ ה-state הפנימי עדיין מתנקה כרגיל, למרות הכשל
-    expect(streams[streamId]).toBeUndefined();
-  });
-
-  it('4. כשל ב-stopRecording נרשם ל-logger עם ה-streamId ופרטי השגיאה', async () => {
-    const hostSocket = createMockSocket('host-socket-end-4', 'host-user');
-    await createHostRoom(hostSocket);
-
-    StreamService.stopRecording.mockRejectedValueOnce(
-      new Error('disk delete failed')
-    );
-
-    await hostSocket.handlers[SOCKET_EVENTS.STREAM.ENDED]();
-
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(streamId)
-    );
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('disk delete failed')
-    );
   });
 });

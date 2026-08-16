@@ -10,13 +10,11 @@ export const useAuthGuard = () => {
 
   // מאזינים לשינוי במצב ההתחברות
   useEffect(() => {
-    // התחברה בהצלחה (כבר לא אורחת) — סוגרים את המודל בכל מקרה, ומריצים פעולה דחויה אם יש
-    if (!isGuest && user && isModalVisible) {
-      if (pendingActionRef.current) {
-        pendingActionRef.current();
-        pendingActionRef.current = null;
-      }
-      setIsModalVisible(false);
+    // אם המשתמשת התחברה בהצלחה (כבר לא אורחת) ויש פעולה שממתינה
+    if (!isGuest && user && isModalVisible && pendingActionRef.current) {
+      pendingActionRef.current(); // 1. מבצעים את הפעולה (למשל: הימור)
+      pendingActionRef.current = null; // 2. מנקים את הזיכרון
+      setIsModalVisible(false); // 3. סוגרים את המודל
     }
   }, [isGuest, user, isModalVisible]);
 

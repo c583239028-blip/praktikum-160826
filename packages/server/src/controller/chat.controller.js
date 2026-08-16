@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES, logger } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 import chatService from '../services/chat.service.js';
 
 export const getChatHistory = async (req, res) => {
@@ -19,7 +19,7 @@ export const getChatHistory = async (req, res) => {
       data: history,
     });
   } catch (error) {
-    logger.error('Error in getChatHistory:', error);
+    console.error('Error in getChatHistory:', error);
     res.status(500).json({
       success: false,
       message: ERROR_MESSAGES.FAILED_TO_RETRIEVE_CHAT_HISTORY,
@@ -47,7 +47,7 @@ export const sendMessageAPI = async (req, res) => {
 
     res.status(201).json({ success: true, data: newMessage });
   } catch (error) {
-    logger.error('Error in sendMessageAPI:', error);
+    console.error('Error in sendMessageAPI:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

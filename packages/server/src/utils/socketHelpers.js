@@ -1,8 +1,8 @@
 // src/utils/socketHelpers.js
 // ✅ כלי עזר לסנכרון real-time של יתרות משתמשים
 
-import prisma from '../lib/prisma.js';
-import { SOCKET_EVENTS, logger } from '@worldplay/shared';
+import { PrismaClient } from '@prisma/client';
+import { SOCKET_EVENTS } from '@worldplay/shared';
 
 /**
  * שידור עדכון יתרה וניקוד לכל המשתמשים המעורבים
@@ -14,7 +14,7 @@ import { SOCKET_EVENTS, logger } from '@worldplay/shared';
  */
 export async function syncUserBalances(io, userIds, gameId) {
   if (!io) {
-    logger.warn('[SOCKET] IO instance not available - skipping balance sync');
+    console.warn('[SOCKET] IO instance not available - skipping balance sync');
     return;
   }
 
@@ -26,12 +26,14 @@ export async function syncUserBalances(io, userIds, gameId) {
       : [];
 
   if (normalizedUserIds.length === 0) {
-    logger.warn('[SOCKET] No user IDs provided for balance sync');
+    console.warn('[SOCKET] No user IDs provided for balance sync');
     return;
   }
 
+  const prisma = new PrismaClient();
+
   try {
-    logger.info(
+    console.log(
       `[SOCKET] Syncing balances for ${normalizedUserIds.length} users...`
     );
 
@@ -62,17 +64,19 @@ export async function syncUserBalances(io, userIds, gameId) {
         // שידור לחדר הפרטי של המשתמש
         io.to(userId).emit(SOCKET_EVENTS.WALLET.BALANCE_UPDATE, balanceData);
 
-        logger.info(
+        console.log(
           `[SOCKET]  Updated balance for user ${userId}: walletCoins=${balanceData.walletCoins}, pointsInGame=${balanceData.pointsInGame}`
         );
       } else {
-        logger.warn(`[SOCKET]  User ${userId} not found`);
+        console.warn(`[SOCKET]  User ${userId} not found`);
       }
     }
 
-    logger.info('[SOCKET] Balance sync completed');
+    console.log('[SOCKET] Balance sync completed');
   } catch (error) {
-    logger.error('[SOCKET]  Error syncing balances:', error.message);
+    console.error('[SOCKET]  Error syncing balances:', error.message);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
@@ -85,12 +89,14 @@ export async function syncUserBalances(io, userIds, gameId) {
  */
 export async function syncGameScores(io, gameId) {
   if (!io) {
-    logger.warn('[SOCKET] IO instance not available - skipping score sync');
+    console.warn('[SOCKET] IO instance not available - skipping score sync');
     return;
   }
 
+  const prisma = new PrismaClient();
+
   try {
-    logger.info(`[SOCKET] Syncing scores for game ${gameId}...`);
+    console.log(`[SOCKET] Syncing scores for game ${gameId}...`);
 
     const participants = await prisma.gameParticipant.findMany({
       where: { gameId },
@@ -108,7 +114,7 @@ export async function syncGameScores(io, gameId) {
     });
 
     if (participants.length === 0) {
-      logger.warn(`[SOCKET] No participants found for game ${gameId}`);
+      console.warn(`[SOCKET] No participants found for game ${gameId}`);
       return;
     }
 
@@ -127,11 +133,13 @@ export async function syncGameScores(io, gameId) {
       timestamp: new Date().toISOString(),
     });
 
-    logger.success(
+    console.log(
       `[SOCKET] ✅ Synced scores for ${participants.length} participants`
     );
   } catch (error) {
-    logger.error('[SOCKET] ❌ Error syncing game scores:', error.message);
+    console.error('[SOCKET] ❌ Error syncing game scores:', error.message);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
@@ -153,7 +161,7 @@ export function broadcastEconomyEvent(io, gameId, eventType, data) {
     timestamp: new Date().toISOString(),
   });
 
-  logger.info(`[SOCKET] 📢 Broadcasted ${eventType} to game ${gameId}`);
+  console.log(`[SOCKET] 📢 Broadcasted ${eventType} to game ${gameId}`);
 }
 
 /**

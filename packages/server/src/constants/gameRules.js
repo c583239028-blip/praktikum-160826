@@ -1,10 +1,18 @@
-import { MIN_WAGER } from '../../../shared/src/constants/gameRules.js';
+module.exports = {
+  // --- 1. חוקי הימורים ---
 
-// --- הגדרות משחק כלליות ---
-// הערה: BETTING_RULES (WINNER_REFUND_RATIO / LOSER_POT_DISTRIBUTION) נמחק —
-// קוד מת ללא צרכנים, בהתאם ל-SPEC §445.
-export const GAME_SETTINGS = {
-  DEFAULT_QUESTION_TIMER: 45, // שניות לכל שאלה (ברירת מחדל, מתוך הסט [15/30/45/60])
-  MIN_WAGER, // הימור מינימלי לשאלה
-  MAX_GIFT_AMOUNT: 5000, // סכום מתנה מקסימלי (למניעת הונאה)
+  BETTING_RULES: {
+    WINNER_REFUND_RATIO: 1.0,
+
+    LOSER_POT_DISTRIBUTION: {
+      MODERATOR_SHARE: 0.4,
+      PLAYERS_SHARE: 0.6,
+    },
+  },
+  // --- 2. הגדרות משחק כלליות ---
+  GAME_SETTINGS: {
+    DEFAULT_QUESTION_TIMER: 30, // שניות לכל שאלה (ברירת מחדל)
+    MIN_WAGER: 10, // הימור מינימלי לשאלה
+    MAX_GIFT_AMOUNT: 5000, // סכום מתנה מקסימלי (למניעת הונאה)
+  },
 };

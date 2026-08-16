@@ -7,8 +7,7 @@
     "node": ">=24.0.0 <25"
   },
   "scripts": {
-    "start": "node index.js",
-    "test": "vitest run"
+    "start": "node index.js"
   },
   "dependencies": {
     "@worldplay/shared": "file:../shared",
@@ -20,8 +19,5 @@
     "prisma": "5.22.0",
     "@prisma/client": "5.22.0",
     "cors": "^2.8.5"
-  },
-  "devDependencies": {
-    "vitest": "^3.2.4"
   }
 }

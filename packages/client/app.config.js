@@ -23,7 +23,7 @@ const env = envConfig[APP_ENV] || envConfig.development;
 export default ({ config }) => ({
   ...config,
   name: env.name,
-  plugins: [...(config.plugins ?? []), 'expo-localization', 'expo-video'],
+  plugins: [...(config.plugins ?? []), 'expo-localization'],
   ios: {
     ...config.ios,
     bundleIdentifier: env.bundleIdentifier,

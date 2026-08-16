@@ -4,7 +4,6 @@ import { MEDIA_BASE_URL } from '../../services/apiConfig';
 const initialState = {
   gameId: null,
   streamId: null,
-  gameType: null,
   role: null, // 'HOST', 'PLAYER', 'VIEWER'
   status: 'WAITING', // 'WAITING', 'ACTIVE', 'PAUSE', 'FINISHED'
   viewMode: 'HLS', // 'WebRTC' (low latency) or 'HLS' (buffered)
@@ -20,15 +19,10 @@ const gameStreamSlice = createSlice({
   reducers: {
     // Triggered when joining a game (from joinGame action)
     initGameSession: (state, action) => {
-      const { gameId, streamId, role, gameType, status } = action.payload;
+      const { gameId, streamId, role } = action.payload;
       state.gameId = gameId;
       state.streamId = streamId;
       state.role = role;
-      state.gameType = gameType;
-      // Caller-supplied ground truth: createAndStartGame passes WAITING (game
-      // only goes ACTIVE once the broadcast starts), joinGame passes ACTIVE
-      // (it only ever joins/resumes a game the feed already filtered to ACTIVE).
-      state.status = status ?? initialState.status;
 
       // MODERATOR always on WebRTC. Players and HOST on WebRTC for broadcasting.
       // VIEWERs use HLS.

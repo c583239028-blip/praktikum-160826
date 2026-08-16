@@ -55,7 +55,7 @@
   "exitBroadcast": "Exit live broadcast",
   "exitConfirmQuestion": "Are you sure you want to exit the game as the host?",
   "exitApproval": "Exit Approval",
-  "moderatorLabel": "Moderator",
+  "hostLabel": "Host",
   "playersLabel": "Players",
   "prepNote": "In the transition to a live broadcast, you'll get 30 seconds to prepare.",
   "shareBanner": "Share the game with friends",

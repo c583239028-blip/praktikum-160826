@@ -16,7 +16,6 @@ export function GameSummaryStep({
   moderator,
   players,
   onGoLive,
-  onBack,
   loading,
   error,
   total,
@@ -33,7 +32,6 @@ export function GameSummaryStep({
       title={t('gameSummary', 'Game Details')}
       total={total}
       current={current}
-      onBack={onBack}
     >
       <View style={styles.pane}>
         {/* Share banner — demo (out of scope per the brief). */}
@@ -56,11 +54,9 @@ export function GameSummaryStep({
         <Row label={t('gameName', 'Game Name')} value={title} />
         <Row label={t('broadcastType', 'Broadcast type')} value={typeLabel} />
 
-        {/* Moderator */}
+        {/* Host */}
         <View style={styles.block}>
-          <Text style={styles.blockLabel}>
-            {t('moderatorLabel', 'Moderator')}
-          </Text>
+          <Text style={styles.blockLabel}>{t('hostLabel', 'Host')}</Text>
           {moderator ? (
             <PersonRow name={moderator.name} />
           ) : (
@@ -144,7 +140,6 @@ GameSummaryStep.propTypes = {
   moderator: PropTypes.object,
   players: PropTypes.array,
   onGoLive: PropTypes.func.isRequired,
-  onBack: PropTypes.func,
   loading: PropTypes.bool,
   error: PropTypes.string,
   total: PropTypes.number.isRequired,

@@ -7,8 +7,8 @@ import {
   SafeAreaView,
 } from 'react-native';
 import PropTypes from 'prop-types';
-import { SOCKET_EVENTS, logger } from '@worldplay/shared';
-import { emitMediaPromise } from '../services/socket.service';
+import { SOCKET_EVENTS } from '@worldplay/shared';
+import { emitPromise } from '../services/socket.service';
 import LazyAuthModal from '../components/LazyAuthModal';
 import { useAuthGuard } from '../hooks/useAuthGuard';
 
@@ -35,18 +35,18 @@ export default function BroadcastScreen() {
       await initMedia();
       setStatus('Connecting to media server...');
 
-      const { streamId } = await emitMediaPromise(
+      const { streamId } = await emitPromise(
         SOCKET_EVENTS.STREAM.INIT_BROADCAST,
         {
           title: 'Moderator broadcast',
         }
       );
-      await emitMediaPromise(SOCKET_EVENTS.STREAM.CREATE_ROOM, { streamId });
+      await emitPromise(SOCKET_EVENTS.STREAM.CREATE_ROOM, { streamId });
 
       setIsLive(true);
       setStatus('Live (not recorded) - WebRTC Disabled');
     } catch (err) {
-      logger.error(err);
+      console.error(err);
       setStatus('Connection error');
     }
   };

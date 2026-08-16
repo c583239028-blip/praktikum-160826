@@ -1,6 +1,6 @@
 # Server Package — `@worldplay/server`
 
-Located at `packages/server`. This is the primary API and game orchestration service: REST endpoints, Socket.IO real-time events, Prisma/PostgreSQL persistence, in-app purchase (IAP) receipt validation, Firebase Admin, and social auth.
+Located at `packages/server`. This is the primary API and game orchestration service: REST endpoints, Socket.IO real-time events, Prisma/PostgreSQL persistence, Stripe payments, Firebase Admin, and social auth.
 
 **Port:** `8080` | **Node:** `>=24.0.0 <25` | **Secrets:** Infisical
 
@@ -53,6 +53,10 @@ src/
     cleanup.job.js             # Scheduled cleanup tasks (node-cron)
   middleware/
     auth.middleware.js         # JWT auth guard
+    socketAuth.js              # Socket.IO JWT validation
+  payments/
+    payments.service.js        # Stripe checkout + payment sheet
+    payments.webhook.js        # Stripe webhook handler
   routes/                      # Express routers (one per domain)
     analytics.routes.js
     auth.routes.js
@@ -66,6 +70,7 @@ src/
     gift.routes.js
     inbox.routes.js
     notification.routes.js
+    payment.routes.js
     question.routes.js
     status.routes.js
     stream.routes.js
@@ -161,8 +166,9 @@ src/
 - `GET /api/finance/balance` — Wallet balance
 - `GET /api/finance/transactions` — Transaction history
 - `GET /api/economy/...` — In-app economy (gifts, coins)
-
-> **Payments:** coins are bought via **platform IAP** (Apple/Google), validated server-side — **no Stripe** (removed; see `docs/spec/SPEC.md` §12). The IAP receipt-validation endpoint is part of the wallet build (§9, not yet implemented).
+- `POST /api/payments/checkout-session` — Stripe checkout
+- `POST /api/payments/webhook` — Stripe webhook
+- `POST /api/payments/create-sheet` — Stripe Payment Sheet (mobile)
 
 ### Gifts
 
@@ -221,7 +227,7 @@ Schema: [prisma/schema.prisma](prisma/schema.prisma)
 | `UserAnswer`      | Answer submissions with timestamps and wager                  |
 | `Chat`            | Per-stream chat messages                                      |
 | `Notification`    | Real-time notifications                                       |
-| `Transaction`     | Purchase (IAP) & economy ledger                               |
+| `Transaction`     | Payment and economy ledger                                    |
 | `Follow`          | User follow relationships                                     |
 | `Inbox`           | Direct messages                                               |
 

@@ -1,5 +1,5 @@
 // ניהול תיבת ההודעות הנכנסות — שליפה עם pagination וסימון כנקרא
-import { ERROR_MESSAGES, logger } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 import inboxService from '../services/inbox.service.js';
 
 const inboxController = {
@@ -22,7 +22,7 @@ const inboxController = {
         },
       });
     } catch (error) {
-      logger.error('[INBOX_CONTROLLER_GET_ERROR]', error.message);
+      console.error('[INBOX_CONTROLLER_GET_ERROR]', error.message);
       return res.status(500).json({
         success: false,
         message: 'שגיאה בשליפת ה-Inbox',
@@ -50,7 +50,7 @@ const inboxController = {
         message: 'הפריט סומן כנקרא בהצלחה',
       });
     } catch (error) {
-      logger.error('[INBOX_CONTROLLER_MARK_ERROR]', error.message);
+      console.error('[INBOX_CONTROLLER_MARK_ERROR]', error.message);
 
       if (error.message === ERROR_MESSAGES.UNAUTHORIZED) {
         return res.status(403).json({

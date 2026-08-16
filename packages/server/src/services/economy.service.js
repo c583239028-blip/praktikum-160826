@@ -7,7 +7,7 @@
  * פונקציות:
  *   distributeStandardPot  — חלוקת קופה רגילה בין שחקנים + מנחה
  *   processWinnerPayout    — תשלום ל"מי ינצח" (85% לזוכה, 15% למנחה)
- *   rewardCorrectAnswers   — פרס לכל העונים נכון (125% מההימור), batched
+ *   rewardCorrectAnswer    — פרס לתשובה נכונה (125% מההימור)
  *   sendGift               — שליחת מתנה (35% לשחקן, 65% למנחה)
  *
  * מתקשר עם: Prisma → User, GameParticipant, UserAnswer, QuestionOption, Transaction, Game
@@ -15,8 +15,7 @@
  * משמש את:  question.service.js, game.controller.js, Socket.IO event handlers
  */
 import prisma from '../lib/prisma.js';
-import { ERROR_MESSAGES, formatMessage } from '@worldplay/shared';
-import { GAME_SETTINGS } from '../constants/gameRules.js';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 
 const economyService = {
   /**
@@ -31,10 +30,8 @@ const economyService = {
   // 1. חלוקת קופה רגילה (Standard Question)
   // ========================================
 
-  // tx אופציונלי: כשמעבירים אותו, החלוקה רצה בתוך הטרנזקציה של הקורא (resolveQuestion)
-  // ולא פותחת $transaction מקונן — כך כשל בהמשך מגלגל גם את החלוקה לאחור (אטומיות מלאה).
-  async distributeStandardPot(questionId, gameId, moderatorId, tx = null) {
-    const run = async (tx) => {
+  async distributeStandardPot(questionId, gameId, moderatorId) {
+    return await prisma.$transaction(async (tx) => {
       const totalWagersResult = await tx.userAnswer.aggregate({
         where: { questionId },
         _sum: { wager: true },
@@ -110,24 +107,15 @@ const economyService = {
           { userId: moderatorId, amount: hostShare, role: 'HOST' },
         ],
       };
-    };
-
-    return tx ? run(tx) : prisma.$transaction(run);
+    });
   },
 
   // ========================================
   // 2. שאלת "מי ינצח" (Winner Payout)
   // ========================================
 
-  // tx אופציונלי — ראה הערה ב-distributeStandardPot.
-  async processWinnerPayout(
-    questionId,
-    correctOptionId,
-    moderatorId,
-    gameId,
-    tx = null
-  ) {
-    const run = async (tx) => {
+  async processWinnerPayout(questionId, correctOptionId, moderatorId, gameId) {
+    return await prisma.$transaction(async (tx) => {
       const correctOption = await tx.questionOption.findUnique({
         where: { id: correctOptionId },
       });
@@ -190,80 +178,62 @@ const economyService = {
       });
 
       return { totalPot, winnerId, winnerShare, hostShare };
-    };
-
-    return tx ? run(tx) : prisma.$transaction(run);
+    });
   },
 
   // ========================================
-  // 3. זיכוי תשובות נכונות - STANDARD בלבד
-  //    כל מי שענה נכון מקבל 125% מההימור שלו
+  // 3. זיכוי תשובה נכונה - STANDARD בלבד
+  //    מי שענה נכון מקבל 125% מההימור שלו
   // ========================================
-  //
-  // batched: שולפים את כל העונים-נכון בשאילתה אחת (findMany) במקום findFirst
-  // לכל משתמש, ומתעדים את כל הזיכויים ב-createMany בודד. עדכוני הארנק/הניקוד
-  // נשארים פר-משתמש כי הסכום שונה לכל אחד, אך אין יותר N שאילתות findFirst.
-  // tx אופציונלי — ראה הערה ב-distributeStandardPot.
-  async rewardCorrectAnswers(questionId, gameId, correctOptionId, tx = null) {
-    const run = async (tx) => {
-      // כל מי שבחר את התשובה הנכונה, בשליפה אחת — מחליף את לולאת ה-findFirst.
-      const correctAnswers = await tx.userAnswer.findMany({
-        where: { questionId, selectedOptionId: correctOptionId },
-        select: { userId: true, wager: true },
+
+  async rewardCorrectAnswer(userId, questionId, gameId) {
+    return await prisma.$transaction(async (tx) => {
+      // מצא את ההימור של המשתמש על שאלה זו
+      const answer = await tx.userAnswer.findFirst({
+        where: { userId, questionId },
       });
 
-      if (correctAnswers.length === 0) return [];
+      if (!answer) return { rewarded: false };
 
-      const rewardResults = [];
-      const transactionRecords = [];
+      // 125% מההימור המקורי
+      const reward = Math.floor(this._toNumber(answer.wager) * 1.25);
 
-      for (const answer of correctAnswers) {
-        const originalWager = this._toNumber(answer.wager);
-        // 125% מההימור המקורי
-        const reward = Math.floor(originalWager * 1.25);
+      // זיכוי הארנק
+      await tx.user.update({
+        where: { id: userId },
+        data: { walletBalance: { increment: reward } },
+      });
 
-        // זיכוי הארנק
-        await tx.user.update({
-          where: { id: answer.userId },
-          data: { walletBalance: { increment: reward } },
-        });
+      // עדכון ניקוד במשחק
+      await tx.gameParticipant.upsert({
+        where: { gameId_userId: { gameId, userId } },
+        update: { score: { increment: reward } },
+        create: {
+          gameId,
+          userId,
+          score: reward,
+          role: 'VIEWER',
+        },
+      });
 
-        // עדכון ניקוד במשחק
-        await tx.gameParticipant.upsert({
-          where: { gameId_userId: { gameId, userId: answer.userId } },
-          update: { score: { increment: reward } },
-          create: {
-            gameId,
-            userId: answer.userId,
-            score: reward,
-            role: 'VIEWER',
-          },
-        });
-
-        transactionRecords.push({
-          userId: answer.userId,
+      // תיעוד בטבלת Transactions
+      await tx.transaction.create({
+        data: {
+          userId,
           type: 'CORRECT_ANSWER',
           amount: reward,
           gameId,
           currency: 'COIN',
           status: 'SUCCESS',
-        });
+        },
+      });
 
-        rewardResults.push({
-          userId: answer.userId,
-          rewarded: true,
-          reward,
-          originalWager,
-        });
-      }
-
-      // תיעוד כל הזיכויים בבת אחת — createMany בודד במקום N קריאות create.
-      await tx.transaction.createMany({ data: transactionRecords });
-
-      return rewardResults;
-    };
-
-    return tx ? run(tx) : prisma.$transaction(run);
+      return {
+        rewarded: true,
+        reward,
+        originalWager: this._toNumber(answer.wager),
+      };
+    });
   },
 
   // ========================================
@@ -271,26 +241,9 @@ const economyService = {
   // ========================================
 
   async sendGift(senderId, receiverPlayerId, moderatorId, giftValue, gameId) {
-    // Validated before the transaction opens — a non-positive giftValue would flip the decrement below into a credit for the sender.
-    if (
-      typeof giftValue !== 'number' ||
-      !Number.isFinite(giftValue) ||
-      giftValue <= 0
-    ) {
-      throw new Error(ERROR_MESSAGES.INVALID_GIFT_VALUE);
-    }
-
-    if (giftValue > GAME_SETTINGS.MAX_GIFT_AMOUNT) {
-      throw new Error(
-        formatMessage(ERROR_MESSAGES.GIFT_EXCEEDS_MAX, {
-          max: GAME_SETTINGS.MAX_GIFT_AMOUNT,
-        })
-      );
-    }
-
     return await prisma.$transaction(async (tx) => {
       const game = await tx.game.findUnique({ where: { id: gameId } });
-      if (!game) throw new Error(ERROR_MESSAGES.GAME_NOT_FOUND);
+      if (!game) throw new Error(`Game not found: ${gameId}`);
 
       const sender = await tx.user.findUnique({ where: { id: senderId } });
       const senderBalance = this._toNumber(sender?.walletBalance);

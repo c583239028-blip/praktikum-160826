@@ -17,13 +17,13 @@ export default function GameScreen() {
     );
   }
 
-  const { role, gameType } = gameStream;
+  const { role } = gameStream;
   return (
     <View style={styles.container}>
       {role === 'HOST' ? (
         <HostFlow />
       ) : role === 'PLAYER' ? (
-        <PlayerScreen gameType={gameType} />
+        <PlayerScreen />
       ) : role === 'MODERATOR' ? (
         <ModeratorScreen />
       ) : (

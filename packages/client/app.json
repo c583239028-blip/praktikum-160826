@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": ["client", "com.hypulse.app"],
+    "scheme": "client",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -59,7 +59,6 @@
       ],
       "expo-apple-authentication",
       "expo-router",
-      "expo-video",
       "./plugins/withGradleMemory",
       [
         "expo-font",
@@ -71,8 +70,7 @@
             "./assets/fonts/Rubik-Bold.ttf"
           ]
         }
-      ],
-      "@react-native-google-signin/google-signin"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

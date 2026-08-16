@@ -1,5 +1,4 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { logger } from '@worldplay/shared';
 import * as questionsApi from '../../services/questionsApi';
 
 // Shape of activeQuestion:
@@ -27,8 +26,8 @@ const questionsSlice = createSlice({
       // NOTE (bug fix): the server emits `questionId` on game:new_question
       // (see question_controller.js), not `id`. The previous version of this
       // reducer only checked/destructured `id`, so it silently no-op'd on
-      // every real socket event. We now accept either key, preferring
-      // `questionId` if present (socket path); falls back to `id` (REST path).
+      // every real socket event. We now accept either key, preferring `id`
+      // if present (e.g. for callers/tests that already normalize the shape).
       const questionId = payload?.questionId ?? payload?.id;
       if (!questionId) return;
 
@@ -116,13 +115,13 @@ export const selectResolvedQuestions = (state) =>
   state.questions.questions.filter((q) => q.isResolved);
 
 // --- Thunk ---
-// Plain thunk (not createAsyncThunk) per SCRUM-256 spec.
+// Plain thunk (not createAsyncThunk) per SCRUM-189 spec.
 export const fetchGameQuestions = (gameId) => async (dispatch) => {
   try {
     const questions = await questionsApi.getGameQuestions(gameId);
     dispatch(setQuestionsList(questions));
   } catch (error) {
-    logger.error('fetchGameQuestions error:', error);
+    console.error('fetchGameQuestions error:', error);
   }
 };
 

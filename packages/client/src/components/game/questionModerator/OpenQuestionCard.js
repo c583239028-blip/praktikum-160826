@@ -65,11 +65,8 @@ export function OpenQuestionCard({ question, onPublish }) {
       {/* ── שורת מטא (משתתפים + שעה) ───────────────────────────────────── */}
       {!expanded && (
         <View style={styles.metaRow}>
-          <Text style={styles.metaText}>
-            {t('participantsCount', {
-              count: question.participantsCount,
-            })}
-          </Text>
+          {/* participantsCount מוסתר זמנית — השדה לא קיים ב-slice עדיין.
+              להחזיר כשיינחת SCRUM-263 (החלטה בג'ירה, 16.7). */}
           <Text style={styles.metaText}>{question.time}</Text>
         </View>
       )}

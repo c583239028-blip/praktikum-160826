@@ -18,4 +18,13 @@ export async function createQuestion(payload) {
     method: 'POST',
     body: JSON.stringify({ rewardType: 'STANDARD', ...payload }),
   });
+  // PATCH /api/questions/:id/resolve — סוגר שאלה פתוחה בשרת עם התשובה שנבחרה.
+// Server (question.controller.js -> resolveQuestion, game.service.js:resolveQuestion)
+// payload: { selectedAnswerId }
+export async function resolveQuestion(questionId, selectedAnswerId) {
+  return apiFetch(`${API_BASE_URL}/api/questions/${questionId}/resolve`, {
+    method: 'PATCH',
+    body: JSON.stringify({ selectedAnswerId }),
+  });
+}
 }

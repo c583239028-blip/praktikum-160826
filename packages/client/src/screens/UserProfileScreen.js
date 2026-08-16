@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { logger } from '@worldplay/shared';
 import {
   View,
   Text,
@@ -9,8 +8,6 @@ import {
   Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import LazyAuthModal from '../components/LazyAuthModal';
 import Screen from '../components/Screen';
@@ -25,13 +22,9 @@ import { useScale } from '../hooks/useScale';
 
 export default function UserProfileScreen() {
   const { t } = useTranslation('profile');
-  const router = useRouter();
   const { user, isGuest, isLoading, logout } = useAuth();
   const [imageError, setImageError] = useState(false);
   const { scale } = useScale();
-  // The tab screen stays mounted after navigating away, and a Modal renders above
-  // everything — without this the sheet follows the guest onto the feed, unclosable.
-  const isFocused = useIsFocused();
   // מונע "flash" של LazyAuthModal בזמן טעינת הסשן
   if (isLoading) return null;
 
@@ -39,7 +32,7 @@ export default function UserProfileScreen() {
     try {
       await logout();
     } catch (e) {
-      logger.error('logout failed', e);
+      console.error('logout failed', e);
       Alert.alert(t('logout_error_title'), t('logout_error_message'));
     }
   };
@@ -80,12 +73,8 @@ export default function UserProfileScreen() {
         <Text style={styles.buttonText}>{t('common:sign_out_button')}</Text>
       </TouchableOpacity>
 
-      {/* Profile is gated: a guest must authenticate — but closing must lead
-          somewhere public, otherwise the modal overlay traps her on this tab. */}
-      <LazyAuthModal
-        visible={isGuest && isFocused}
-        onClose={() => router.replace('/')}
-      />
+      {/* אורח לא יכול לסגור את המודל — חייב לעבור אימות */}
+      <LazyAuthModal visible={isGuest} onClose={() => {}} />
     </Screen>
   );
 }

@@ -29,20 +29,20 @@ import {
   getAppSocket,
   connectAppSocket,
   emitPromise,
-} from '../services/socket.service'; // TODO: לוודא נתיב מדויק
-import { SOCKET_EVENTS } from '../../../shared/src/constants/socketEvents'; // TODO: לוודא נתיב מדויק
+} from '../services/socket.service'; 
+import { resolveQuestion } from '../services/questionsApi';
+import { SOCKET_EVENTS } from '../../../shared/src/constants/socketEvents'; 
 
 // --- Redux ---
-import { initGameSession } from '../store/slices/gameStreamSlice'; // TODO: לוודא נתיב מדויק
+import { initGameSession } from '../store/slices/gameStreamSlice'; 
 import {
   fetchGameQuestions,
   clearActiveQuestion,
   selectDraftQuestions,
   selectOpenQuestions,
 } from '../store/slices/questionsSlice';
-// TODO: נתיב 'store/slices/questionsSlice' הוסק מתוך היחס היחסי
-// ('../../services/questionsApi') שראינו בתוך questionsSlice.js עצמו -
-// import { updateStreamStats } from '../store/slices/streamStatsSlice'; // TODO: לוודא נתיב מדויק
+
+// import { updateStreamStats } from '../store/slices/streamStatsSlice'; 
 
 // --- Design tokens ---
 import { Colors, Spacing, BorderRadius, TextStyles ,FontSize } from '../../constants/design';
@@ -50,41 +50,38 @@ import { Colors, Spacing, BorderRadius, TextStyles ,FontSize } from '../../const
 import { SpeakerIconWrapper } from '../components/game/ui/SpeakerIconWrapper';
 import { PlayersDetailModal } from '../components/game/PlayersDetailModal';
 // פאנל פרופיל שחקן (bottom sheet) - נפתח בלחיצה על אווטאר ב-AvatarsRow
-import { PlayerProfilePanel } from '../components/game/profile/PlayerProfilePanel'; // TODO: לוודא נתיב מדויק
+import { PlayerProfilePanel } from '../components/game/profile/PlayerProfilePanel'; 
 // דף הפרופיל המלא - נפתח מתוך "Go to profile" בפאנל, באותו pattern
 // של החלפת "מסך" פנימי כמו AddQuestionForm/DraftQuestionsList/וכו' (לא ניווט אמיתי)
-import ProfileView from '../components/game/profile/ProfileView'; // TODO: לוודא נתיב מדויק
+import ProfileView from '../components/game/profile/ProfileView'; 
 import { OpenQuestionModal } from '../components/game/questionModerator/OpenQuestionModal';
-import { NoPermissionToWriteModal } from '../components/game/questionModerator/NoPermissionToWriteModal'; // TODO: לוודא נתיב מדויק - הקובץ סופק בנפרד מה-repo
+import { NoPermissionToWriteModal } from '../components/game/questionModerator/NoPermissionToWriteModal'; 
 // יבוא נוסף
-import { StreamLayout } from '../components/game/StreamLayout'; // TODO: לוודא נתיב מדויק
+import { StreamLayout } from '../components/game/StreamLayout'; 
 import { OpenQuestionsPillsRow } from '../components/game/questionModerator/OpenQuestionsPillsRow';
 
 // --- טוסט "שאלה חדשה מצופה" ---
-// TODO: הקומפוננטה נוצרה כרגע באותה תיקייה כמו ModeratorScreen.js כדי למנוע התעסקות ביבואים -
-// לשקול להעביר בעתיד ל-'../components/game/...' יחד עם שאר קומפוננטות המסך.
 import { NewQuestionToast } from '../components/game/questionModerator/NewQuestionToast';
 import {PublishResultToast} from "../components/game/questionModerator/PublishResultToast"
  import ConnectionsList from '../components/game/connections/ConnectionsList';
 // TODO: participantsSlice לא מכיל avatarUrl (רק userId/username/role).
 // Avatar.source ו-AvatarsRow.players[].avatarUrl הם חובה (isRequired).
 // עד שיחווט מקור avatar אמיתי - placeholder קבוע. לסמן ל-Sara.
-const DEFAULT_AVATAR_SOURCE = require('../../assets/images/react-logo.png'); // TODO: לוודא שהנתיב קיים בפרויקט
+const DEFAULT_AVATAR_SOURCE = require('../../assets/images/react-logo.png'); 
 const DEFAULT_AVATAR_URL = 'https://placehold.co/64x64/png?text=%20';
 const INVITE_STATE = {
   DIALOG: 'dialog',
-  ENTERING: 'entering',
+  ENTERING: 'entering',   // spinner מעברי בתוך JoinLifecycle בלבד
+  ENTERED: 'entered',     // המנחה בפועל בפנים - זה מה שפותח את הלוח הראשי
   REJECTED: 'rejected',
 };
- 
-// פאנל שאלות פעיל - איזה מ-4 המודלים פתוח כרגע (או null)
+ // פאנל שאלות פעיל - איזה מ-4 המודלים פתוח כרגע (או null)
 const PANEL = {
   ADD: 'add',
   DRAFT: 'draft',
   OPEN: 'open',
   VIEWER: 'viewer',
 };
- 
 // מספר הצופים המינימלי הנדרש בשידור כדי שהמנחה יוכל לפרסם שאלה
 // (שאלה שהוא כתב בעצמו או שאלה שנשלחה ע"י צופה) - לפי הדרישה החדשה.
 const MIN_VIEWERS_TO_PUBLISH = 50;
@@ -96,15 +93,16 @@ export default function ModeratorScreen({ route }) {
   // ---------------------------------------------------------------------
   // 1. זרימת הזמנה (JoinLifecycle) - local state (הוחלט: לא Redux slice)
   // ---------------------------------------------------------------------
-  const [inviteState, setInviteState] = useState('entering'); // null = טרם התקבלה הזמנה
-  const [inviteData, setInviteData] = useState({
-    // gameId: null,
-    // streamId: null, // TODO: לוודא שה-payload של MODERATOR_INVITATION אכן כולל streamId
-    // inviterName: '',
-    // inviterImageUri: '',
-    // countdown: 60,
-   gameId:'1', streamId:'s1', inviterName:'יורי', inviterImageUri:'', countdown:60
-  });
+  const [inviteState, setInviteState] = useState(null); // null = טרם התקבלה הזמנה מהשרת
+const [inviteData, setInviteData] = useState({
+  gameId: null,
+  streamId: null,
+  inviterName: '',
+  inviterImageUri: '',
+  countdown: 60,
+});
+
+ 
  
   const socketRef = useRef(null);
  
@@ -201,30 +199,28 @@ export default function ModeratorScreen({ route }) {
     return () => clearTimeout(timer);
   }, [newQuestionToast.visible]);
  
-  const handleAccept = useCallback(async () => {
-    try {
-      await emitPromise(SOCKET_EVENTS.GAME.ACCEPT_MODERATOR, {
+const handleAccept = useCallback(async () => {
+  setInviteState(INVITE_STATE.ENTERING); // מציג spinner בזמן ההמתנה לתשובת שרת
+  try {
+    await emitPromise(SOCKET_EVENTS.GAME.ACCEPT_MODERATOR, {
+      gameId: inviteData.gameId,
+    });
+    setInviteState(INVITE_STATE.ENTERED); // רק עכשיו נכנסים בפועל ללוח הראשי
+
+    dispatch(
+      initGameSession({
         gameId: inviteData.gameId,
-      });
-      setInviteState(INVITE_STATE.ENTERING);
- 
-      // gameStream.gameId לא מתעדכן אוטומטית ב-flow הזה (initGameSession
-      // נקרא היום רק ב-flow של HOST) - קוראים לו כאן ידנית כדי שרכיבים
-      // אחרים שתלויים ב-Redux (עתידי, כולל שכבת הוידאו) יקבלו streamId/role.
-      // TODO: לאשר מול Sara/דבורי שזו ההתנהגות הרצויה.
-      dispatch(
-        initGameSession({
-          gameId: inviteData.gameId,
-          streamId: inviteData.streamId,
-          role: 'MODERATOR',
-        })
-      );
-    } catch (err) {
-      // TODO: הצגת שגיאה למשתמש (טרם הוגדר UI לשגיאת accept)
-      console.log('ACCEPT_MODERATOR failed', err);
-    }
-  }, [inviteData.gameId, inviteData.streamId, dispatch]);
- 
+        streamId: inviteData.streamId,
+        role: 'MODERATOR',
+      })
+    );
+  } catch (err) {
+    // TODO: הצגת שגיאה למשתמש (טרם הוגדר UI לשגיאת accept)
+    console.log('ACCEPT_MODERATOR failed', err);
+  }
+}, [inviteData.gameId, inviteData.streamId, dispatch]);
+// ה-onModeratorInvitation שמקבל מהשרת - נשאר אותו דבר אבל עכשיו fires מ-null, לא מ-'entering'
+setInviteState(INVITE_STATE.DIALOG);
   const handleReject = useCallback(async () => {
     try {
       await emitPromise(SOCKET_EVENTS.GAME.REJECT_MODERATOR, {
@@ -361,11 +357,11 @@ const handleCloseConnectionsList = useCallback(() => {
   // Pull חד-פעמי בכניסה למסך (לפי החלטת ראש הצוות: "dispatch אחד בטעינה").
   // עדכונים בזמן אמת (NEW_QUESTION/QUESTION_RESOLVED) כבר מטופלים בתוך
   // ה-slice עצמו דרך socketMiddleware הקיים - אין כאן listener נוסף.
-  useEffect(() => {
-    if (inviteState === INVITE_STATE.ENTERING && gameId) {
-      dispatch(fetchGameQuestions(gameId));
-    }
-  }, [inviteState, gameId, dispatch]);
+useEffect(() => {
+  if (inviteState === INVITE_STATE.ENTERED && gameId) {
+    dispatch(fetchGameQuestions(gameId));
+  }
+}, [inviteState, gameId, dispatch]);
  
   // ניקוי activeQuestion ביציאה מהמסך (AC4)
   useEffect(() => {
@@ -412,30 +408,42 @@ const mappedParticipantStreams = participants.map((p) => ({
   isSelected: false, // TODO: אין מושג "משתתף נבחר/מודגש" ב-state הנוכחי
   giftCount: 0, // TODO: streamStats.giftCount הוא כללי לשידור, לא per-participant
 }));
-  // TODO: questionsApi.js בפועל מכיל רק getGameQuestions - אין
-  // resolveQuestion. לא ברור אם OpenQuestionsList מבצעת PATCH פנימית
-  // (בדומה ל-AddQuestionForm שמרכיבה POST בפנים) ו-onPublish הוא רק
-  // callback לרענון, או שresolveQuestion עדיין חסרה ב-service וצריך
-  // להוסיף. עד לאישור - onPublish רק מרענן את הרשימה, בלי לקרוא לשרת.
-const handlePublish = useCallback(() => {
-    // חסימת פרסום כל עוד אין מספיק צופים בשידור - חל בין אם השאלה נכתבה
-    // ע"י המנחה עצמו (AddQuestionForm) ובין אם היא הגיעה מצופה ואושרה
-    // לפרסום דרך OpenQuestionsList/OpenQuestionModal - כל הנתיבים עוברים
-    // דרך handlePublish אחד, אז הבדיקה נעשית כאן במקום אחד.    
-    if ((streamStats.viewerCount ?? 0) < MIN_VIEWERS_TO_PUBLISH) {
-      
-      setIsNoPermissionModalVisible(true);
-      return;
-    }
- 
-    if (gameId) {
-      dispatch(fetchGameQuestions(gameId));
-    }
-    setActiveOpenQuestionId(null); // סוגר את מודל השאלה הבודדת
-    setShowPublishToast(true);
-    setPublishedQuestionsCount((prev) => prev + 1);
-  }, [gameId, dispatch, streamStats.viewerCount]);
- 
+ const canPublish = useCallback(() => {
+  if ((streamStats.viewerCount ?? 0) < MIN_VIEWERS_TO_PUBLISH) {
+    setIsNoPermissionModalVisible(true);
+    return false;
+  }
+  return true;
+}, [streamStats.viewerCount]);
+
+// נקרא מ-AddQuestionForm כששאלה חדשה נוצרה - אין כאן resolve, רק רענון+טוסט
+const handleQuestionAdded = useCallback(() => {
+  if (!canPublish()) return;
+  if (gameId) dispatch(fetchGameQuestions(gameId));
+  setActiveOpenQuestionId(null);
+  setShowPublishToast(true);
+  setPublishedQuestionsCount((prev) => prev + 1);
+}, [canPublish, gameId, dispatch]);
+
+// נקרא מ-OpenQuestionsList/OpenQuestionModal בפרסום תוצאה בפועל -
+// מבצע PATCH לשרת (היה חסר לגמרי - סעיף 1.2 באודיט)
+const handlePublish = useCallback(async (questionId, selectedAnswerId) => {
+  if (!canPublish()) return;
+
+  try {
+    await resolveQuestion(questionId, selectedAnswerId);
+  } catch (err) {
+    // TODO: הצגת שגיאה למשתמש - טרם הוגדר UI לשגיאת resolve
+    console.log('resolveQuestion failed', err);
+    return;
+  }
+
+  if (gameId) dispatch(fetchGameQuestions(gameId));
+  setActiveOpenQuestionId(null);
+  setShowPublishToast(true);
+  setPublishedQuestionsCount((prev) => prev + 1);
+}, [canPublish, gameId, dispatch]);
+
   // סוגר את הטוסט אוטומטית - TODO: לאשר משך זמן מדויק
   useEffect(() => {
     if (!showPublishToast) return;
@@ -446,24 +454,23 @@ const handlePublish = useCallback(() => {
   // ---------------------------------------------------------------------
   // Render: זרימת הזמנה
   // ---------------------------------------------------------------------
-  if (inviteState === null) {
-    // TODO: מסך טעינה/ריק עד שמתקבל MODERATOR_INVITATION - לא הוגדר UI
-    return <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surface.white }} />;
-  }
- 
-  if (inviteState !== INVITE_STATE.ENTERING) {
-    return (
-      <JoinLifecycle
-        state={inviteState}
-        role="moderator"
-        countdown={inviteData.countdown}
-        inviterName={inviteData.inviterName}
-        inviterImageUri={inviteData.inviterImageUri}
-        onAccept={handleAccept}
-        onDecline={handleReject}
-      />
-    );
-  }
+if (inviteState === null) {
+  return <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surface.white }} />;
+}
+
+if (inviteState !== INVITE_STATE.ENTERED) {
+  return (
+    <JoinLifecycle
+      state={inviteState}      // עכשיו יכול להיות בפועל 'dialog'/'entering'/'rejected'
+      role="moderator"
+      countdown={inviteData.countdown}
+      inviterName={inviteData.inviterName}
+      inviterImageUri={inviteData.inviterImageUri}
+      onAccept={handleAccept}
+      onDecline={handleReject}
+    />
+  );
+}
  
   // ---------------------------------------------------------------------
   // Render: הלוח הראשי (state === 'entering')
@@ -592,13 +599,13 @@ return (
       </View>
  
       {activePanel === PANEL.ADD && (
-        <AddQuestionForm
-          gameId={gameId}
-          onClose={() => setActivePanel(null)}
-          onQuestionAdded={handlePublish}
-          onNavigateToDrafts={() => setActivePanel(PANEL.DRAFT)}
-          onNavigateToViewerQuestions={() => setActivePanel(PANEL.VIEWER)}
-        />
+      <AddQuestionForm
+  gameId={gameId}
+  onClose={() => setActivePanel(null)}
+  onQuestionAdded={handleQuestionAdded} 
+  onNavigateToDrafts={() => setActivePanel(PANEL.DRAFT)}
+  onNavigateToViewerQuestions={() => setActivePanel(PANEL.VIEWER)}
+/>
       )}
  
       {activePanel === PANEL.DRAFT && (

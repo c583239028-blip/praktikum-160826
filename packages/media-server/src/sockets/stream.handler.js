@@ -1,90 +1,15 @@
-import prisma from '../lib/prisma.js';
+import { PrismaClient } from '@prisma/client';
 import * as msService from '../services/mediasoup.service.js';
 import { logger } from '../utils/logger.js';
 import { StreamService } from '../services/stream.service.js';
-import { APP_SERVER_URL } from '../config.js';
-import {
-  ERROR_MESSAGES,
-  SOCKET_EVENTS,
-  MAX_ACTIVE_PLAYERS,
-  isValidStreamId,
-  PARTICIPANT_ROLES,
-} from '@worldplay/shared';
+import { ERROR_MESSAGES, SOCKET_EVENTS } from '@worldplay/shared';
+const prisma = new PrismaClient();
 
 export const streams = {};
 const transports = {};
 const producers = {};
 const consumers = {};
 const socketToProducers = {};
-const socketToStream = {};
-const viewerCountDebounceTimers = {};
-const viewerCountWriteSequence = {};
-const viewerCountWriteChain = {};
-
-const VIEWER_COUNT_DEBOUNCE_MS = 500;
-
-// מחשבת viewerCount מיד (סינכרוני) — מונע חישוב מיושן.
-// viewerCountWriteSequence מונע מכתיבה איטית לדרוס כתיבה מאוחרת ומהירה
-// ממנה: myTurn נלקח בזמן התזמון; אחרי ה-await, כתיבה נזרקת אם כבר
-// התחיל turn גבוה יותר ממנה.
-function publishViewerCount(io, streamId) {
-  const streamRoom = streams[streamId];
-  if (!streamRoom) return;
-
-  const room = io.sockets.adapter.rooms.get(streamId);
-  const roomSize = room ? room.size : 0;
-  const viewerCount = Math.max(
-    0,
-    roomSize - streamRoom.participantSocketIds.size
-  );
-
-  if (viewerCountDebounceTimers[streamId]) {
-    clearTimeout(viewerCountDebounceTimers[streamId]);
-  }
-
-  const myTurn = (viewerCountWriteSequence[streamId] || 0) + 1;
-  viewerCountWriteSequence[streamId] = myTurn;
-
-  viewerCountDebounceTimers[streamId] = setTimeout(() => {
-    delete viewerCountDebounceTimers[streamId];
-
-    const previousWrite = viewerCountWriteChain[streamId] || Promise.resolve();
-
-    const thisWrite = previousWrite
-      .catch(() => {})
-      .then(async () => {
-        if (viewerCountWriteSequence[streamId] > myTurn) return;
-
-        const currentRoom = streams[streamId];
-        if (!currentRoom || currentRoom.isClosing) return;
-
-        try {
-          await prisma.stream.update({
-            where: { id: streamId },
-            data: { viewerCount },
-          });
-
-          const roomAfterWrite = streams[streamId];
-          if (viewerCountWriteSequence[streamId] > myTurn) return;
-          if (!roomAfterWrite || roomAfterWrite.isClosing) return;
-
-          io.to(streamId).emit(SOCKET_EVENTS.STREAM.VIEWER_COUNT, {
-            streamId,
-            viewerCount,
-          });
-        } catch (error) {
-          logger.error(
-            `Failed to publish viewer count for stream ${streamId}: ${error.message}`
-          );
-        }
-      });
-
-    viewerCountWriteChain[streamId] = thisWrite;
-  }, VIEWER_COUNT_DEBOUNCE_MS);
-}
-
-const HLS_INPUT_ROLES = new Set(['HOST', 'PLAYER', 'MODERATOR']);
-const RECORDING_START_DELAY_MS = 1500;
 
 export const registerStreamHandlers = (io, socket) => {
   const user = socket.user;
@@ -107,7 +32,7 @@ export const registerStreamHandlers = (io, socket) => {
 
       // 2. יצירת השידור בשרת האפליקציה
       logger.info(`Initiating broadcast for user: ${user.id}`);
-      const response = await fetch(`${APP_SERVER_URL}/api/streams`, {
+      const response = await fetch('http://app-server:8080/api/streams', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,12 +61,6 @@ export const registerStreamHandlers = (io, socket) => {
     SOCKET_EVENTS.STREAM.CREATE_ROOM,
     async ({ streamId }, callback) => {
       try {
-        // שער ראשון: streamId מגיע מהקליינט. חוסמים כל מה שאינו UUID לפני
-        // שנוצר חדר/ראוטר או שהמזהה זולג לנתיב בדיסק (path traversal, SCRUM-290).
-        if (!isValidStreamId(streamId)) {
-          return callback({ error: ERROR_MESSAGES.INVALID_STREAM_ID });
-        }
-
         if (!streams[streamId]) {
           const worker = msService.getWorker();
           const router = await msService.createRouter(worker);
@@ -149,15 +68,9 @@ export const registerStreamHandlers = (io, socket) => {
             router,
             hostSocketId: socket.id,
             hostUserId: user ? user.id : 'dev-host',
-            transports: new Map(),
-            participantSocketIds: new Set(),
+            transports: new Map(), // הוספנו מפה לניהול טרנספורטים בתוך החדר
           };
         }
-
-        socket.join(streamId);
-        socketToStream[socket.id] = streamId;
-        publishViewerCount(io, streamId);
-
         callback({ rtpCapabilities: streams[streamId].router.rtpCapabilities });
       } catch (error) {
         callback({ error: error.message });
@@ -228,7 +141,8 @@ export const registerStreamHandlers = (io, socket) => {
         }
       }
 
-      const { transportId, kind, rtpParameters, streamId } = actualData || {};
+      // שינוי ל-let כי אנחנו עשויים לעדכן את rtpParameters
+      let { transportId, kind, rtpParameters, streamId } = actualData || {};
 
       if (!kind) {
         logger.error(`Kind is missing. Type of data: ${typeof actualData}`);
@@ -240,83 +154,42 @@ export const registerStreamHandlers = (io, socket) => {
       const streamRoom = streams[streamId];
       if (!streamRoom) throw new Error(ERROR_MESSAGES.ROOM_NOT_CREATED);
 
-      const transport = transports[transportId];
+      let transport = transports[transportId];
       if (!transport) {
-        logger.error(`Transport not found for transportId: ${transportId}`);
-        if (typeof callback === 'function')
-          callback({ error: ERROR_MESSAGES.TRANSPORT_NOT_FOUND });
-        return;
+        logger.info('Creating temporary transport for testing...');
+        transport = await msService.createWebRtcTransport(streamRoom.router);
+        transports[transport.id] = transport;
+        streamRoom.transports.set(transport.id, transport);
+        logger.info(`Temporary transport created with ID: ${transport.id}`);
       }
 
-      // לא ממציאים rtpParameters/SSRC כברירת מחדל — ערכים מפוברקים גורמים
-      // להתנגשות בין producers שונים שמקבלים אותו SSRC (FINDINGS M4-05).
+      // 2. הוספת Codecs ו-Encodings אם הם חסרים
       if (
         !rtpParameters ||
         !rtpParameters.codecs ||
-        rtpParameters.codecs.length === 0 ||
+        rtpParameters.codecs.length === 0
+      ) {
+        rtpParameters = {
+          mid: 'v',
+          codecs: [
+            {
+              mimeType: 'video/vp8',
+              payloadType: 101,
+              clockRate: 90000,
+              parameters: { 'x-google-start-bitrate': 1000 },
+            },
+          ],
+          encodings: [{ ssrc: 11111111 }],
+        };
+      } else if (
         !rtpParameters.encodings ||
         rtpParameters.encodings.length === 0
       ) {
-        logger.error(`Missing or invalid rtpParameters for stream ${streamId}`);
-        if (typeof callback === 'function')
-          callback({ error: ERROR_MESSAGES.RTP_PARAMETERS_REQUIRED });
-        return;
+        rtpParameters.encodings = [{ ssrc: 11111111 }];
       }
 
-      // 1. אימות תפקיד המשתתף בזרם
-
-      let role;
-      try {
-        role = await validateParticipantRole(streamId, socket.user.id);
-      } catch (roleErr) {
-        if (typeof callback === 'function')
-          callback({ error: roleErr.message });
-        return;
-      }
-
-      // 2. Cap 4: רק HOST/PLAYER נספרים; MODERATOR ו-VIEWER לא.
-      const isCountedRole = role === 'HOST' || role === 'PLAYER';
-      const isExistingParticipant = streamRoom.participantSocketIds.has(
-        socket.id
-      );
-
-      if (
-        isCountedRole &&
-        !isExistingParticipant &&
-        streamRoom.participantSocketIds.size >= MAX_ACTIVE_PLAYERS
-      ) {
-        if (typeof callback === 'function')
-          callback({ error: ERROR_MESSAGES.ROOM_FULL });
-        logger.info(
-          `Producer rejected for stream ${streamId}: room full (${MAX_ACTIVE_PLAYERS} players)`
-        );
-        return;
-      }
-
-      // SCRUM-315: שריון סינכרוני — לפני ה-await הבא, כדי לסגור את המרוץ.
-      const reservedSlot = isCountedRole && !isExistingParticipant;
-      if (reservedSlot) {
-        streamRoom.participantSocketIds.add(socket.id);
-      }
-
-      // 3. יצירת ה-Producer — רק אחרי שעברנו role+cap.
-      // streamId is recorded server-side here (not re-read from a future
-      // event's payload) so later handlers never have to trust a client's
-      // claim about which room a producer belongs to — see PRODUCER_PAUSE.
-      let producer;
-      try {
-        producer = await transport.produce({
-          kind,
-          rtpParameters,
-          appData: { socketId: socket.id, userId: user.id, streamId },
-        });
-      } catch (produceErr) {
-        // rollback: produce נכשל, לשחרר את הסלוט שנשמר למעלה.
-        if (reservedSlot) {
-          streamRoom.participantSocketIds.delete(socket.id);
-        }
-        throw produceErr;
-      }
+      // 3. יצירת ה-Producer
+      const producer = await transport.produce({ kind, rtpParameters });
       producers[producer.id] = producer;
       if (!streamRoom.producers) streamRoom.producers = {};
       streamRoom.producers[producer.id] = producer;
@@ -326,10 +199,9 @@ export const registerStreamHandlers = (io, socket) => {
       }
       socketToProducers[socket.id].add(producer.id);
 
-      producer.observer.on('close', async () => {
+      producer.observer.on('close', () => {
         try {
           const isHost = streamRoom.hostSocketId === socket.id;
-
           if (!isHost && !streamRoom.isClosing) {
             io.to(streamId).emit(SOCKET_EVENTS.STREAM.PRODUCER_CLOSED, {
               producerId: producer.id,
@@ -340,144 +212,73 @@ export const registerStreamHandlers = (io, socket) => {
           delete producers[producer.id];
 
           socketToProducers[socket.id]?.delete(producer.id);
-
           if (socketToProducers[socket.id]?.size === 0) {
             delete socketToProducers[socket.id];
           }
 
-          if (streamRoom.producers) {
-            delete streamRoom.producers[producer.id];
-          }
-
-          if (streamRoom.producerRoles) {
+          if (streamRoom.producers) delete streamRoom.producers[producer.id];
+          if (streamRoom.producerRoles)
             delete streamRoom.producerRoles[producer.id];
-          }
-
-          if (streamRoom.producerUsers) {
-            delete streamRoom.producerUsers[producer.id];
-          }
-
-          // forcedMutedUserIds is intentionally NOT cleaned up here — the
-          // mute is keyed by userId, not this producer's id, so it must
-          // survive this producer closing (e.g. a reconnect) and re-apply
-          // to whatever producer the user creates next. Only an explicit
-          // moderator UNMUTE clears it.
-
-          // Room-capacity bookkeeping must not depend on the HLS-recording
-          // cleanup below succeeding — a departed player's slot has to free
-          // up even if removeRecordingInput fails.
-          if (streamRoom.producers) {
-            const stillHasProducerInRoom = Object.values(
-              streamRoom.producers
-            ).some((p) => p.appData?.socketId === socket.id);
-            if (!stillHasProducerInRoom) {
-              streamRoom.participantSocketIds.delete(socket.id);
-            }
-          } else {
-            streamRoom.participantSocketIds.delete(socket.id);
-          }
-
-          publishViewerCount(io, streamId);
-
-          await StreamService.removeRecordingInput({
-            streamId,
-            producerId: producer.id,
-          });
 
           logger.info(`Producer ${producer.id} cleaned up successfully`);
-        } catch (error) {
+        } catch (err) {
           logger.error(
-            `Error cleaning up producer ${producer.id}: ${error.message}`
+            `Error cleaning up producer ${producer.id}: ${err.message}`
           );
         }
       });
-      if (isCountedRole) {
-        socket.join(streamId);
-        socketToStream[socket.id] = streamId;
-        publishViewerCount(io, streamId);
+
+      // 4. קביעת role ושידור הצטרפות מצלמה חדשה לכל מי שבחדר
+      let role;
+      try {
+        role = await validateParticipantRole(streamId, socket.user.id);
+      } catch (roleErr) {
+        producer.close();
+        delete producers[producer.id];
+        if (streamRoom.producers) delete streamRoom.producers[producer.id];
+        socketToProducers[socket.id]?.delete(producer.id);
+        if (socketToProducers[socket.id]?.size === 0) {
+          delete socketToProducers[socket.id];
+        }
+        throw roleErr;
+      }
+
+      if (producer.closed) {
+        if (typeof callback === 'function')
+          callback({ error: 'Producer was closed before role resolved' });
+        return;
       }
 
       if (!streamRoom.producerRoles) streamRoom.producerRoles = {};
       streamRoom.producerRoles[producer.id] = role;
-      // userId travels with every producer so a consumer can group a
-      // participant's separate audio+video producers into one tile.
-      if (!streamRoom.producerUsers) streamRoom.producerUsers = {};
-      streamRoom.producerUsers[producer.id] = user.id;
-
-      // The mute lock is per-user (streamRoom.forcedMutedUserIds), not tied
-      // to a producer instance — so a producer created (or re-created after
-      // a disconnect/reconnect) while its owner is under an active
-      // moderator mute must start paused, or the mute would be silently
-      // bypassed by the reconnect. Paused BEFORE announcing the producer
-      // (NEW_PRODUCER) so the room never observes it as briefly active.
-      const isBornMutedAudio =
-        kind === 'audio' && streamRoom.forcedMutedUserIds?.has(user.id);
-      if (isBornMutedAudio) {
-        await producer.pause();
-      }
-
-      // Canonical 6-field contract (SCRUM-203 gate / FINDINGS M4-14): kind+paused
-      // let a live-arriving producer seed the correct camera/mic state instead of
-      // deriving it wrong forever; symmetric with JOIN's currentProducers.
       io.to(streamId).emit(SOCKET_EVENTS.STREAM.NEW_PRODUCER, {
         producerId: producer.id,
         role,
         streamId,
-        userId: user.id,
-        kind: producer.kind,
-        paused: producer.paused,
       });
 
-      if (isBornMutedAudio) {
-        io.to(streamId).emit(SOCKET_EVENTS.STREAM.PRODUCER_PAUSED, {
-          producerId: producer.id,
-          kind: 'audio',
-          paused: true,
-          streamId,
+      // 5. בדיקת תפקיד והפעלת FFmpeg (משתמש ב-role שחושב לעיל)
+      if (kind === 'video' && (role === 'HOST' || role === 'PLAYER')) {
+        logger.info('Video producer detected. Preparing FFmpeg pipeline.');
+
+        await prisma.stream.update({
+          where: { id: streamId },
+          data: { status: 'LIVE', startTime: new Date() },
         });
-      }
 
-      // 4. רישום כל מקור מדיה (Host / Player / Moderator) ב-StreamService.
-      if (HLS_INPUT_ROLES.has(role)) {
-        // רק וידאו של ה-Host מתחיל את השידור מבחינת השרת.
-        if (kind === 'video' && role === 'HOST') {
-          logger.info('Host video producer detected. Starting live stream.');
-
-          await prisma.stream.update({
-            where: { id: streamId },
-            data: {
-              status: 'LIVE',
-              startTime: new Date(),
-            },
-          });
-        }
-
+        // הוספת השהיה של 1.5 שניות לפני תחילת ההקלטה
         setTimeout(async () => {
-          if (producer.closed) {
-            logger.info(
-              `Skipping closed ${kind} producer ${producer.id} for stream ${streamId}`
-            );
-            return;
-          }
-
           try {
-            logger.info(
-              `Registering ${kind} producer for ${role} in stream ${streamId}`
-            );
-
-            await StreamService.startRecording({
+            logger.info(`Starting FFmpeg pipeline for stream: ${streamId}`);
+            await StreamService.startRecording(
               streamId,
-              router: streamRoom.router,
-              producer,
-              participantId: socket.user.id,
-              role,
-            });
-          } catch (error) {
-            logger.error(
-              `Failed to register ${kind} producer: ${error.message}`
+              streamRoom.router,
+              producer // כאן עובר הפרודיוסר של הוידאו
             );
+          } catch (err) {
+            logger.error(`FFmpeg start error: ${err.message}`);
           }
-        }, RECORDING_START_DELAY_MS);
+        }, 1500);
       }
 
       if (typeof callback === 'function') callback({ id: producer.id });
@@ -549,102 +350,22 @@ export const registerStreamHandlers = (io, socket) => {
     }
   });
 
-  // Player/host toggled their camera or mic. Pause/resume the server-side
-  // producer (stops outgoing RTP so consumers don't see a frozen frame) and
-  // broadcast the new media state to the rest of the room so their tiles can
-  // show a "camera off" / "muted" indicator instead of the last frame.
-  socket.on(
-    SOCKET_EVENTS.STREAM.PRODUCER_PAUSE,
-    async ({ producerId, kind, paused }, callback) => {
-      try {
-        const producer = producers[producerId];
-        if (!producer)
-          return (
-            typeof callback === 'function' &&
-            callback({ error: ERROR_MESSAGES.PRODUCER_NOT_FOUND })
-          );
-
-        // Only the owner of the producer may change its state.
-        if (!socketToProducers[socket.id]?.has(producerId))
-          return (
-            typeof callback === 'function' &&
-            callback({ error: ERROR_MESSAGES.NOT_PRODUCER_OWNER })
-          );
-
-        // Which room this producer belongs to is recorded server-side at
-        // creation time (producer.appData.streamId) — never trust a
-        // client-supplied streamId for this. Otherwise a muted user could
-        // send their own real producerId alongside an unrelated/fake
-        // streamId, miss the forcedMutedUserIds lookup for their real
-        // room, and resume themselves.
-        const streamId = producer.appData?.streamId;
-        if (!streamId || !streams[streamId])
-          return (
-            typeof callback === 'function' &&
-            callback({ error: ERROR_MESSAGES.STREAM_ROOM_NOT_FOUND })
-          );
-
-        // A moderator-enforced mute locks the owner's own toggle — they
-        // cannot unmute themselves while it's in effect (AC2). Keyed by
-        // userId (not this producerId) so it survives the owner's producer
-        // being closed and re-created (e.g. a reconnect).
-        if (
-          !paused &&
-          producer.kind === 'audio' &&
-          streams[streamId]?.forcedMutedUserIds?.has(socket.user.id)
-        )
-          return (
-            typeof callback === 'function' &&
-            callback({ error: ERROR_MESSAGES.MUTED_BY_MODERATOR })
-          );
-
-        if (paused) await producer.pause();
-        else await producer.resume();
-
-        const event = paused
-          ? SOCKET_EVENTS.STREAM.PRODUCER_PAUSED
-          : SOCKET_EVENTS.STREAM.PRODUCER_RESUMED;
-
-        socket.to(streamId).emit(event, {
-          producerId,
-          kind: kind || producer.kind,
-          paused,
-          streamId,
-        });
-
-        if (typeof callback === 'function') callback({ success: true });
-      } catch (error) {
-        logger.error(
-          `Failed to ${paused ? 'pause' : 'resume'} producer ${producerId}: ${error.message}`
-        );
-        if (typeof callback === 'function') callback({ error: error.message });
-      }
-    }
-  );
-
   socket.on(SOCKET_EVENTS.STREAM.JOIN, async ({ streamId }, callback) => {
     try {
       const streamRoom = streams[streamId];
       if (!streamRoom)
         return callback({ error: ERROR_MESSAGES.STREAM_NOT_LIVE });
       socket.join(streamId);
-      socketToStream[socket.id] = streamId;
-      publishViewerCount(io, streamId);
       const producerRoles = streamRoom.producerRoles || {};
-      const producerUsers = streamRoom.producerUsers || {};
-      const roomProducers = streamRoom.producers || {};
-      const currentProducers = Object.keys(roomProducers).map((producerId) => ({
-        producerId,
-        role: producerRoles[producerId] || PARTICIPANT_ROLES.VIEWER,
-        userId: producerUsers[producerId] || null,
-        // Carry the live media state so a late joiner seeds the tile as
-        // "camera off" / "muted" instead of showing a paused producer as active.
-        kind: roomProducers[producerId]?.kind,
-        paused: roomProducers[producerId]?.paused ?? false,
-      }));
+      const currentProducers = Object.keys(streamRoom.producers || {}).map(
+        (producerId) => ({
+          producerId,
+          role: producerRoles[producerId] || 'VIEWER',
+        })
+      );
       const hostProducerId =
         Object.keys(producerRoles).find(
-          (producerId) => producerRoles[producerId] === PARTICIPANT_ROLES.HOST
+          (producerId) => producerRoles[producerId] === 'HOST'
         ) || null;
 
       const game = await prisma.game.findFirst({
@@ -664,19 +385,11 @@ export const registerStreamHandlers = (io, socket) => {
   });
 
   socket.on(SOCKET_EVENTS.STREAM.ENDED, async () => {
-    const streamIdsToClose = Object.keys(streams).filter(
-      (streamId) => streams[streamId].hostSocketId === socket.id
-    );
-
-    await Promise.allSettled(
-      streamIdsToClose.map(async (streamId) => {
-        try {
-          await handleCloseStream(streamId, io);
-        } catch (error) {
-          logger.error(`Failed to close stream ${streamId}: ${error.message}`);
-        }
-      })
-    );
+    for (const streamId in streams) {
+      if (streams[streamId].hostSocketId === socket.id) {
+        await handleCloseStream(streamId, io);
+      }
+    }
   });
   // טיפול בניתוק פתאומי
   socket.on(SOCKET_EVENTS.SYSTEM.DISCONNECT, async () => {
@@ -692,29 +405,17 @@ export const registerStreamHandlers = (io, socket) => {
       delete socketToProducers[socket.id];
     }
 
-    const streamIdsToClose = Object.keys(streams).filter(
-      (streamId) => streams[streamId].hostSocketId === socket.id
-    );
+    for (const streamId in streams) {
+      // אם זה ה-Host שהתנתק
+      if (streams[streamId].hostSocketId === socket.id) {
+        logger.info(`Host disconnected, cleaning up stream: ${streamId}`);
 
-    await Promise.allSettled(
-      streamIdsToClose.map(async (streamId) => {
-        try {
-          logger.info(`Host disconnected, cleaning up stream: ${streamId}`);
+        // קריאה לשירות הניקוי
+        await StreamService.stopRecording(streamId);
 
-          // עדכון סטטוס ב-DB וסגירת החדר — כולל עצירת ההקלטה
-          await handleCloseStream(streamId, io);
-        } catch (error) {
-          logger.error(
-            `Failed to clean up stream ${streamId} on disconnect: ${error.message}`
-          );
-        }
-      })
-    );
-
-    if (socketToStream[socket.id]) {
-      const leftStreamId = socketToStream[socket.id];
-      delete socketToStream[socket.id];
-      publishViewerCount(io, leftStreamId);
+        // עדכון סטטוס ב-DB וסגירת החדר
+        await handleCloseStream(streamId, io);
+      }
     }
   });
 };
@@ -722,26 +423,13 @@ export const registerStreamHandlers = (io, socket) => {
 export const handleCloseStream = async (streamId, io) => {
   const streamRoom = streams[streamId];
   if (!streamRoom) return;
-  try {
-    await StreamService.stopRecording(streamId);
-  } catch (err) {
-    logger.error(
-      `Failed to stop recording for stream ${streamId}: ${err.message}`
-    );
-  }
   streamRoom.isClosing = true;
   if (streamRoom.router) streamRoom.router.close();
   streamRoom.producerRoles = {};
-  if (viewerCountDebounceTimers[streamId]) {
-    clearTimeout(viewerCountDebounceTimers[streamId]);
-    delete viewerCountDebounceTimers[streamId];
-  }
-  delete viewerCountWriteSequence[streamId];
-  delete viewerCountWriteChain[streamId];
   try {
     await prisma.stream.update({
       where: { id: streamId },
-      data: { status: 'FINISHED', endTime: new Date(), viewerCount: 0 },
+      data: { status: 'FINISHED', endTime: new Date() },
     });
   } catch (err) {
     logger.error(err.message);
@@ -760,7 +448,5 @@ async function validateParticipantRole(streamId, userId) {
     where: { id: streamId },
     select: { hostId: true },
   });
-  return stream?.hostId === userId
-    ? PARTICIPANT_ROLES.HOST
-    : PARTICIPANT_ROLES.VIEWER;
+  return stream?.hostId === userId ? 'HOST' : 'VIEWER';
 }

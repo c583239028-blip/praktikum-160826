@@ -1,20 +1,11 @@
 import economyService from '../services/economy.service.js';
-import { syncUserBalances } from '../utils/socketHelpers.js';
-import { ERROR_MESSAGES } from '@worldplay/shared';
+import { syncUserBalances } from '../utils/balanceSync.js';
 
 const economyController = {
   async sendGift(req, res) {
     try {
-      const senderId = req.user.id;
-      const { receiverPlayerId, moderatorId, giftValue, gameId } = req.body;
-
-      // Reject an explicit mismatch instead of silently overriding it — surfaces IDOR attempts and client bugs rather than masking them.
-      if (req.body.senderId !== undefined && req.body.senderId !== senderId) {
-        return res.status(403).json({
-          status: 'error',
-          message: ERROR_MESSAGES.SENDER_ID_MISMATCH,
-        });
-      }
+      const { senderId, receiverPlayerId, moderatorId, giftValue, gameId } =
+        req.body;
 
       const result = await economyService.sendGift(
         senderId,

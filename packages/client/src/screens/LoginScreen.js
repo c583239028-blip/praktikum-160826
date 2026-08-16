@@ -74,8 +74,25 @@ const LoginScreen = ({ onLoginSuccess }) => {
     }
   };
 
-  // TODO(SCRUM-117): implement Facebook login once Meta App Review is approved.
-  const handleFacebookLogin = async () => {};
+  // TODO: Implement Facebook login with actual Facebook SDK token
+  const handleFacebookLogin = async () => {
+    //   setLoading(true);
+    //   try {
+    //     const mockAccessToken = 'PLACEHOLDER_SDK_TOKEN'; // Replace with actual token from Facebook SDK
+    //     const data = await authService.loginWithFacebook(mockAccessToken);
+    //     await connectAppSocket();
+    //     onLoginSuccess({
+    //       id: data.user.id,
+    //       email: data.user.email,
+    //       username: data.user.username || data.user.email,
+    //     });
+    //   } catch (error) {
+    //     if (error.code === 'USER_CANCELED') return;
+    //     Alert.alert(t('sign_in_error_title'), error.message, [{ text: t('try_again_button') }]);
+    //   } finally {
+    //     setLoading(false);
+    //   }
+  };
 
   return (
     <View style={styles.container}>

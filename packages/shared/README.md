@@ -12,7 +12,7 @@ Located at `packages/shared`. A lightweight ESM package providing code shared ac
 | -------------------- | ------------------------------------------------------------------------ |
 | `CreateGameSchema`   | Room name (min 3 chars), max players (2–8), optional `isPrivate` flag    |
 | `JoinGameSchema`     | UUID game ID, role enum (`HOST` / `PLAYER` / `VIEWER`, default `VIEWER`) |
-| `SubmitAnswerSchema` | UUID question ID, UUID option ID, positive finite wager amount           |
+| `SubmitAnswerSchema` | UUID question ID, UUID option ID, non-negative wager amount              |
 
 These schemas are used on both the backend (request validation) and the client (form validation) to ensure both sides agree on the same rules.
 

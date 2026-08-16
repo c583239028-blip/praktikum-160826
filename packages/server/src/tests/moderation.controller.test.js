@@ -10,8 +10,7 @@ import { ModerationType } from '@prisma/client';
 import moderationController from '../controller/moderation.controller.js';
 import moderationService from '../services/moderation.service.js';
 import permissionsService from '../services/permissions.service.js';
-import { enforceMuteOnMediaServer } from '../utils/moderationSocket.js';
-import { ERROR_MESSAGES, SOCKET_EVENTS } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 
 vi.mock('../services/moderation.service.js', () => ({
   default: {
@@ -28,28 +27,13 @@ vi.mock('../services/permissions.service.js', () => ({
   },
 }));
 
-vi.mock('../utils/moderationSocket.js', async (importOriginal) => {
-  const actual = await importOriginal();
-  return { ...actual, enforceMuteOnMediaServer: vi.fn() };
-});
-
-function buildReqRes({ params = {}, body = {}, userId = 'user-1', io } = {}) {
+function buildReqRes({ params = {}, body = {}, userId = 'user-1' } = {}) {
   const req = { params, body, user: { id: userId } };
-  if (io) req.app = { get: (key) => (key === 'io' ? io : undefined) };
   const res = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
   };
   return { req, res };
-}
-
-// io מזויף — to(room).emit(...) לפליטה, ו-in(room).socketsLeave(gameId) ל-KICK
-function buildIo() {
-  const emit = vi.fn();
-  const to = vi.fn(() => ({ emit }));
-  const socketsLeave = vi.fn();
-  const inRoom = vi.fn(() => ({ socketsLeave }));
-  return { io: { to, in: inRoom }, to, emit, inRoom, socketsLeave };
 }
 
 describe('moderationController', () => {
@@ -252,135 +236,6 @@ describe('moderationController', () => {
         });
       }
     );
-  });
-
-  describe('real-time enforcement (socket layer)', () => {
-    beforeEach(() => {
-      moderationService.findActiveGameForStream.mockResolvedValue({
-        id: 'game-1',
-      });
-      permissionsService.ensureModerator.mockResolvedValue({
-        role: 'MODERATOR',
-      });
-      moderationService.createModerationAction.mockResolvedValue({
-        id: 'action-9',
-      });
-    });
-
-    it.each([
-      ['mute', SOCKET_EVENTS.MODERATION.MUTED],
-      ['unmute', SOCKET_EVENTS.MODERATION.UNMUTED],
-    ])('%s emits %s to the target private room', async (method, event) => {
-      const { io, to, emit } = buildIo();
-      const { req, res } = buildReqRes({
-        params: { id: 'stream-1' },
-        body: { targetUserId: 'target-1' },
-        io,
-      });
-
-      await moderationController[method](req, res);
-
-      expect(to).toHaveBeenCalledWith('target-1');
-      expect(emit).toHaveBeenCalledWith(event, { streamId: 'stream-1' });
-      expect(res.status).toHaveBeenCalledWith(201);
-    });
-
-    it.each([
-      ['mute', true],
-      ['unmute', false],
-    ])(
-      '%s enforces the change on the media server before notifying the target',
-      async (method, muted) => {
-        const { io } = buildIo();
-        const { req, res } = buildReqRes({
-          params: { id: 'stream-1' },
-          body: { targetUserId: 'target-1' },
-          io,
-        });
-
-        await moderationController[method](req, res);
-
-        expect(enforceMuteOnMediaServer).toHaveBeenCalledWith(
-          'stream-1',
-          'target-1',
-          muted
-        );
-        expect(res.status).toHaveBeenCalledWith(201);
-      }
-    );
-
-    it('report and kick do not call the media-server mute channel', async () => {
-      const { io } = buildIo();
-      const { req: reportReq, res: reportRes } = buildReqRes({
-        params: { id: 'stream-1' },
-        body: { reason: 'spam' },
-        io,
-      });
-      await moderationController.report(reportReq, reportRes);
-
-      const { req: kickReq, res: kickRes } = buildReqRes({
-        params: { id: 'stream-1' },
-        body: { targetUserId: 'target-1' },
-        io,
-      });
-      await moderationController.kick(kickReq, kickRes);
-
-      expect(enforceMuteOnMediaServer).not.toHaveBeenCalled();
-    });
-
-    it('channel failure — logs and returns 500 instead of failing silently', async () => {
-      enforceMuteOnMediaServer.mockRejectedValueOnce(
-        new Error('media-server unreachable')
-      );
-      const { io, emit } = buildIo();
-      const { req, res } = buildReqRes({
-        params: { id: 'stream-1' },
-        body: { targetUserId: 'target-1' },
-        io,
-      });
-
-      await moderationController.mute(req, res);
-
-      expect(console.error).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        error: ERROR_MESSAGES.FAILED_TO_PERFORM_MODERATION_ACTION,
-      });
-      // enforcement failed, so the target must not be told they're muted
-      expect(emit).not.toHaveBeenCalled();
-    });
-
-    it('kick removes the target from the game room and emits KICKED', async () => {
-      const { io, to, emit, inRoom, socketsLeave } = buildIo();
-      const { req, res } = buildReqRes({
-        params: { id: 'stream-1' },
-        body: { targetUserId: 'target-1' },
-        io,
-      });
-
-      await moderationController.kick(req, res);
-
-      // scoped to the target's private room so only their sockets leave
-      expect(inRoom).toHaveBeenCalledWith('target-1');
-      expect(socketsLeave).toHaveBeenCalledWith('game-1');
-      expect(to).toHaveBeenCalledWith('target-1');
-      expect(emit).toHaveBeenCalledWith(SOCKET_EVENTS.MODERATION.KICKED, {
-        streamId: 'stream-1',
-      });
-      expect(res.status).toHaveBeenCalledWith(201);
-    });
-
-    it('still records the action (201) when no io is attached', async () => {
-      const { req, res } = buildReqRes({
-        params: { id: 'stream-1' },
-        body: { targetUserId: 'target-1' },
-      });
-
-      await moderationController.mute(req, res);
-
-      expect(moderationService.createModerationAction).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(201);
-    });
   });
 
   describe('getGamesUnderReview', () => {

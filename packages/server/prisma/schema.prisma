@@ -38,7 +38,6 @@ model User {
   following          Follow[]           @relation("Following")
   followedBy         Follow[]           @relation("FollowedBy")
   participations     GameParticipant[]
-  authoredQuestions  Question[]         @relation("AuthoredQuestions")
   hostedGames        Game[]             @relation("HostGames")
   moderatedGames     Game[]             @relation("ModeratorGames")
   moderationAsActor  ModerationAction[] @relation("ModerationActor")
@@ -139,7 +138,6 @@ model Stream {
   accumulatedPauseMs Int                @default(0)
   status             StreamStatus       @default(WAITING)
   lastPausedAt       DateTime?          @map("last_paused_at")
-  viewerCount        Int                @default(0) @map("viewer_count")
   games              Game[]
   host               User               @relation("HostStreams", fields: [hostId], references: [id])
   moderationActions  ModerationAction[]
@@ -151,7 +149,6 @@ model Game {
   id                String             @id @default(uuid())
   title             String
   description       String?
-  gameType          GameType           @default(CLOSE_UP) @map("game_type")
   hostId            String             @map("host_id")
   moderatorId       String?            @map("moderator_id")
   streamId          String             @map("stream_id")
@@ -199,13 +196,9 @@ model Question {
   isResolved   Boolean            @default(false) @map("is_resolved")
   timeLimit    Int?               @map("time_limit")
   isDraft      Boolean            @default(false) @map("is_draft")
-  authorId     String?            @map("author_id")
-  // מצב אישור נפרד מ-isDraft. שאלת צופה נשמרת PENDING ולא משודרת עד אישור מנחה. ראה Q1b.
-  approvalStatus QuestionApprovalStatus @default(APPROVED) @map("approval_status")
   createdAt    DateTime           @default(now()) @map("created_at")
   options      QuestionOption[]
   game         Game               @relation(fields: [gameId], references: [id])
-  author       User?              @relation("AuthoredQuestions", fields: [authorId], references: [id])
   answers      UserAnswer[]
 
   @@map("questions")
@@ -375,21 +368,8 @@ enum QuestionRewardType {
   WINNER_TAKES_ALL
 }
 
-// מצב אישור של שאלה — מובחן מ-isDraft (טיוטת מנחה) ומ-authorId (מי כתב).
-// שאלת מנחה נוצרת APPROVED; שאלת צופה נוצרת PENDING עד שהמנחה מאשרת/דוחה. ראה Q1b.
-enum QuestionApprovalStatus {
-  APPROVED
-  PENDING
-  REJECTED
-}
-
 enum SystemRole {
   USER
   STAFF
   ADMIN
-}
-
-enum GameType {
-  CLOSE_UP
-  REMOTE
 }

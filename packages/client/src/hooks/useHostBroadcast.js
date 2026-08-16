@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { SOCKET_EVENTS, logger } from '@worldplay/shared';
+import { SOCKET_EVENTS } from '@worldplay/shared';
 import {
   getAppSocket,
-  getMediaSocket,
   emitPromise,
   emitMediaPromise,
 } from '../services/socket.service';
@@ -21,11 +20,7 @@ export function useHostBroadcast() {
   const dispatch = useDispatch();
   const router = useRouter();
   const { t } = useTranslation('host');
-  const {
-    gameId,
-    streamId,
-    status: gameStatus,
-  } = useSelector((state) => state.gameStream);
+  const { gameId, streamId } = useSelector((state) => state.gameStream);
 
   const [localStream, setLocalStream] = useState(null);
   const [status, setStatus] = useState('Ready');
@@ -40,8 +35,6 @@ export function useHostBroadcast() {
 
   const localStreamRef = useRef(null);
   const sendTransportRef = useRef(null);
-  const videoProducerRef = useRef(null);
-  const audioProducerRef = useRef(null);
   const gameIdRef = useRef(null);
   const streamIdRef = useRef(null);
   const hasEndedRef = useRef(false);
@@ -59,32 +52,15 @@ export function useHostBroadcast() {
     streamIdRef.current = streamId;
   }, [streamId]);
 
-  // Live viewer count from the media-server (SCRUM-229). The host is in the
-  // stream room (joined during startBroadcast), so it receives stream:viewer_count
-  // on the media socket. We filter by streamId so a stray event for another
-  // room can't overwrite our count.
-  //
-  // Depending only on [isLive] is safe: isLive is set to true at the end of
-  // startBroadcast, *after* emitMediaPromise(CREATE_ROOM) resolves — which goes
-  // through connectMediaSocket() and rejects unless the media socket is
-  // connected. So by the time this effect runs, getMediaSocket() is guaranteed
-  // non-null. The null-guard below is a belt-and-suspenders fallback.
+  // Simulated viewer counter while live
   useEffect(() => {
     if (!isLive) return;
-    const mediaSocket = getMediaSocket();
-    if (!mediaSocket) return;
-
-    const handleViewerCount = (payload) => {
-      if (payload?.streamId && payload.streamId !== streamIdRef.current) return;
-      if (typeof payload?.viewerCount === 'number') {
-        setViewerCount(payload.viewerCount);
-      }
-    };
-
-    mediaSocket.on(SOCKET_EVENTS.STREAM.VIEWER_COUNT, handleViewerCount);
-    return () => {
-      mediaSocket.off(SOCKET_EVENTS.STREAM.VIEWER_COUNT, handleViewerCount);
-    };
+    const interval = setInterval(() => {
+      setViewerCount((prev) =>
+        Math.max(0, prev + (Math.random() > 0.5 ? 1 : -1))
+      );
+    }, 4000);
+    return () => clearInterval(interval);
   }, [isLive]);
 
   // ----- helpers -----
@@ -99,51 +75,24 @@ export function useHostBroadcast() {
       sendTransportRef.current.close();
       sendTransportRef.current = null;
     }
-    videoProducerRef.current = null;
-    audioProducerRef.current = null;
   };
 
-  // Tell the media server the producer was paused/resumed so it stops the
-  // outgoing RTP and broadcasts the state to consumers (their tile shows a
-  // "camera off" / "muted" indicator instead of a frozen frame).
-  const notifyProducerState = async (producerId, kind, paused) => {
-    if (!producerId) return;
-    try {
-      await emitMediaPromise(SOCKET_EVENTS.STREAM.PRODUCER_PAUSE, {
-        streamId: streamIdRef.current || streamId,
-        producerId,
-        kind,
-        paused,
-      });
-    } catch (err) {
-      // non-fatal: the local track is already toggled either way. Still surface
-      // it — a silent failure here means consumers keep a frozen frame with no
-      // dev-visible cause.
-      logger.warn(
-        `notifyProducerState (${kind}, paused=${paused}) failed: ${err?.message ?? err}`
-      );
-    }
-  };
-
-  // Toggle the outgoing video track. The transport/producer stays alive; we
-  // flip `enabled` locally and notify the server so consumers get a real
-  // "camera off" state instead of a frozen frame.
+  // Toggle the outgoing video track. Disabling keeps the transport/producer
+  // alive (viewers just see a frozen/black frame) so the broadcast never drops.
   const toggleCamera = () => {
     const track = localStreamRef.current?.getVideoTracks?.()[0];
     if (!track) return;
     track.enabled = !track.enabled;
     setCameraOn(track.enabled);
-    notifyProducerState(videoProducerRef.current?.id, 'video', !track.enabled);
   };
 
   // Toggle the outgoing audio track (mute / unmute). Same principle — the
-  // producer stays up, we flip `enabled` and notify the server.
+  // producer stays up, we only flip `enabled`.
   const toggleMic = () => {
     const track = localStreamRef.current?.getAudioTracks?.()[0];
     if (!track) return;
     track.enabled = !track.enabled;
     setMicOn(track.enabled);
-    notifyProducerState(audioProducerRef.current?.id, 'audio', !track.enabled);
   };
 
   const endAndCleanup = async () => {
@@ -209,27 +158,17 @@ export function useHostBroadcast() {
 
       setStatus(t('sendingVideo', 'שולח וידאו...'));
       if (stream.getVideoTracks()[0]) {
-        videoProducerRef.current = await transport.produce({
-          track: stream.getVideoTracks()[0],
-        });
+        await transport.produce({ track: stream.getVideoTracks()[0] });
       }
       if (stream.getAudioTracks()[0]) {
-        audioProducerRef.current = await transport.produce({
-          track: stream.getAudioTracks()[0],
-        });
+        await transport.produce({ track: stream.getAudioTracks()[0] });
       }
 
-      // Resuming an already-ACTIVE game (host re-entering via LIVE tab) must
-      // not repeat the WAITING->ACTIVE transition — the server rejects a
-      // same-status update, which would otherwise strand this resume in the
-      // error state right after re-acquiring the camera.
-      if (gameStatus !== 'ACTIVE') {
-        await emitPromise(SOCKET_EVENTS.GAME.STATUS_UPDATE, {
-          gameId,
-          status: 'ACTIVE',
-        });
-        dispatch(setStreamStatus('ACTIVE'));
-      }
+      await emitPromise(SOCKET_EVENTS.GAME.STATUS_UPDATE, {
+        gameId,
+        status: 'ACTIVE',
+      });
+      dispatch(setStreamStatus('ACTIVE'));
       setIsLive(true);
       setStatus(t('liveStatus', 'שידור חי'));
     } catch (err) {

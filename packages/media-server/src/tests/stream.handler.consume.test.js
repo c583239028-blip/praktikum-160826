@@ -39,15 +39,6 @@ vi.mock('../services/mediasoup.service.js', () => ({
 }));
 
 vi.mock('@worldplay/shared', () => ({
-  // streamId UUID validation is covered in stream.service.sanitize-streamid.test.js;
-  // here we only need the create_room guard to accept well-formed ids.
-  isValidStreamId: () => true,
-  PARTICIPANT_ROLES: {
-    HOST: 'HOST',
-    PLAYER: 'PLAYER',
-    MODERATOR: 'MODERATOR',
-    VIEWER: 'VIEWER',
-  },
   SOCKET_EVENTS: {
     SYSTEM: {
       DISCONNECT: 'disconnect',
@@ -159,8 +150,7 @@ async function setupRoomForConsume({ io, streamId, hostSocket, viewerSocket }) {
 
 describe('stream.handler — CONSUME ו-RESUME (תיקון באג stream:resume)', () => {
   let io;
-  // Real Stream.id is @default(uuid()); create_room now rejects non-UUIDs.
-  const streamId = 'a0000000-0000-4000-8000-000000000006';
+  const streamId = 'stream-consume-test';
   const producerId = 'producer-abc';
   const rtpCapabilities = { codecs: [] };
 

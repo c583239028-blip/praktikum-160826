@@ -49,7 +49,7 @@ export function HostFlow() {
   // and players are demo-only for now (self-contained in their steps), so they
   // don't feed the draft; real ids return with the users API.
   const [title, setTitle] = useState('');
-  const [gameType, setGameType] = useState('CLOSE_UP');
+  const [gameType, setGameType] = useState('CLOSEUP');
   // Demo selections — display-only on the summary; NOT sent to the server (mock
   // ids). Lifted here so the summary screen can show host + players.
   const [moderator, setModerator] = useState(null);

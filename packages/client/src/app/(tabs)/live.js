@@ -1,18 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { logger } from '@worldplay/shared';
-import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useDispatch } from 'react-redux';
-import { useTranslation } from 'react-i18next';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+// TODO: תלות ב-T16 — StreamCard (מנוטרל זמנית עד שהתיקון יתמזג)
+// import StreamCard from '../../components/StreamCard';
 import { useRouter } from 'expo-router';
 import { useAuthGuard } from '../../hooks/useAuthGuard';
-import { useAuth } from '../../context/AuthContext';
 import LazyAuthModal from '../../components/LazyAuthModal';
 import DevPreviewScreen from '../../screens/DevPreviewScreen';
 
@@ -51,41 +41,39 @@ export default function LiveScreen() {
   //   </View>
   // );
 }
-
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.lg,
-  },
-  title: {
-    color: Colors.primary.default,
-    fontSize: FontSize.h1,
-    fontWeight: FontWeight.bold,
-  },
-  subtitle: {
-    color: Colors.text.tertiary,
-    fontSize: FontSize.bodyM,
-    marginTop: Spacing.sm,
-  },
-  errorText: {
-    color: Colors.error.main,
-    fontSize: FontSize.caption,
-    marginTop: Spacing.md,
-  },
-  listContent: {
-    flexGrow: 1,
-  },
-  emptyList: {
-    justifyContent: 'center',
-  },
-  cardContainer: {
-    position: 'relative',
-  },
-  joiningOverlay: {
-    ...StyleSheet.absoluteFillObject,
+  container: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: hexToRgba(Colors.surface.dark, 0.6),
+    gap: 16,
+  },
+  title: {
+    color: '#06b6d4',
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  subtitle: {
+    color: '#aaa',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  button: {
+    backgroundColor: '#06b6d4',
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 24,
+    width: 200,
+    alignItems: 'center',
+  },
+  viewerButton: {
+    backgroundColor: '#3a3a3a',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

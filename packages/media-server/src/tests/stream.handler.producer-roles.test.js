@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { randomUUID } from 'node:crypto';
 
 // ─────────────────────────────────────────────
 // Mocks — דומה לקובץ הקיים אבל יותר מורחב
@@ -69,15 +68,6 @@ vi.mock('../services/mediasoup.service.js', () => ({
 }));
 
 vi.mock('@worldplay/shared', () => ({
-  // streamId UUID validation is covered in stream.service.sanitize-streamid.test.js;
-  // here we only need the create_room guard to accept well-formed ids.
-  isValidStreamId: () => true,
-  PARTICIPANT_ROLES: {
-    HOST: 'HOST',
-    PLAYER: 'PLAYER',
-    MODERATOR: 'MODERATOR',
-    VIEWER: 'VIEWER',
-  },
   SOCKET_EVENTS: {
     SYSTEM: {
       DISCONNECT: 'disconnect',
@@ -92,7 +82,6 @@ vi.mock('@worldplay/shared', () => ({
       ENDED: 'stream:ended',
     },
   },
-  MAX_ACTIVE_PLAYERS: 4,
 }));
 
 import {
@@ -130,7 +119,6 @@ function createMockIo() {
       }),
     })),
     emitTracker,
-    sockets: { adapter: { rooms: { get: () => undefined } } },
   };
 }
 
@@ -254,8 +242,7 @@ describe('stream.handler — SCRUM-167: Producer Roles & NEW_PRODUCER', () => {
     // streamId ייחודי לכל טסט (לא קבוע משותף) — מבטל לחלוטין סיכון
     // להתנגשות עם state שנכתב ע"י טסטים אחרים, גם אם קבצים שונים
     // רצים על אותו streams singleton באותו תהליך
-    // Real Stream.id is @default(uuid()); create_room now rejects non-UUIDs.
-    streamId = randomUUID();
+    streamId = `stream-role-test-${Math.random().toString(36).slice(2)}`;
     io = createMockIo();
 
     // איפוס מפת ה-roles בין טסטים - כל טסט מגדיר בעצמו מי קיבל איזה role
@@ -756,11 +743,7 @@ describe('stream.handler — SCRUM-167: Producer Roles & NEW_PRODUCER', () => {
   });
 
   // ─────────────────────────────────────────────
-  // בדיקה 8: טיפול בכשל DB ב-validateParticipantRole (finding 1, תגובה #15190).
-  // הבדיקה המקורית 8b (race: producer נסגר בזמן שה-role resolve) הוסרה —
-  // אחרי הזזת role+cap check לפני transport.produce() (SCRUM-250 code
-  // review), התרחיש הזה בלתי אפשרי מבנית: אין יותר producer קיים בזמן
-  // שה-role עדיין ממתין.
+  // בדיקה 8: טיפול בכשל DB ו-race condition ב-PRODUCE (finding 1 + 2, תגובה #15190)
   // ─────────────────────────────────────────────
 
   it('8a. כשל DB ב-validateParticipantRole — producer נסגר ומנוקה, callback מקבל error, אין דליפה', async () => {
@@ -809,7 +792,8 @@ describe('stream.handler — SCRUM-167: Producer Roles & NEW_PRODUCER', () => {
       produceCb
     );
 
-    expect(hostTransport.produce).not.toHaveBeenCalled();
+    // ה-producer נסגר בפועל ברמת mediasoup
+    expect(closeSpy).toHaveBeenCalled();
 
     // הcallback קיבל error ולא id — הקליינט יודע שה-produce נכשל
     expect(produceCb.mock.calls[0][0]).toHaveProperty('error');
@@ -817,7 +801,7 @@ describe('stream.handler — SCRUM-167: Producer Roles & NEW_PRODUCER', () => {
 
     // אין producer "רפאים" שנשאר רשום בחדר
     const streamRoom = streams[streamId];
-    expect(streamRoom.producers?.['producer-8a']).toBeUndefined();
+    expect(streamRoom.producers['producer-8a']).toBeUndefined();
 
     // לא שודר NEW_PRODUCER עבור producer שמעולם לא קיבל role תקין
     const leakedEmits = io.emitTracker.filter(
@@ -828,77 +812,79 @@ describe('stream.handler — SCRUM-167: Producer Roles & NEW_PRODUCER', () => {
     expect(leakedEmits.length).toBe(0);
   });
 
-  // ─────────────────────────────────────────────
-  // בדיקה 9: חוזה 6-השדות הקנוני של NEW_PRODUCER (SCRUM-203 / FINDINGS M4-14)
-  // נועל את צורת ה-payload כדי שלא תיסחף שוב — S4 fan-out מתבסס עליה.
-  // ─────────────────────────────────────────────
+  it('8b. אם producer נסגר (disconnect) בדיוק בזמן שה-role עדיין resolve — NEW_PRODUCER לא משודר', async () => {
+    const hostSocket = createMockSocket('host-socket-8b', 'host-user');
+    registerStreamHandlers(io, hostSocket);
 
-  it('9a. NEW_PRODUCER נושא את כל 6 שדות החוזה הקנוני', async () => {
-    const hostSocket = createMockSocket('host-socket-9a', 'host-user');
-    const playerSocket = createMockSocket('player-socket-9a', 'player-user');
-    setGameParticipantRole('player-user', 'PLAYER');
+    const createRoomCb = vi.fn();
+    await hostSocket.handlers[SOCKET_EVENTS.STREAM.CREATE_ROOM](
+      { streamId },
+      createRoomCb
+    );
+    streams[streamId].router = { rtpCapabilities: {}, close: vi.fn() };
 
-    const { playerProducers } = await setupRoomWithProducer({
-      io,
-      streamId,
-      hostSocket,
-      playerSocket,
-    });
-    const playerProducer = playerProducers[0];
+    const mockProducer = {
+      id: 'producer-8b',
+      observer: { on: vi.fn() },
+      close: vi.fn(),
+      closed: false,
+    };
+    const hostTransport = {
+      id: 'transport-host-8b',
+      on: vi.fn(),
+      produce: vi.fn().mockResolvedValue(mockProducer),
+    };
+    msService.createWebRtcTransport.mockResolvedValue(hostTransport);
 
-    const emit = io.emitTracker.find(
+    const transportCb = vi.fn();
+    await hostSocket.handlers[SOCKET_EVENTS.STREAM.CREATE_TRANSPORT](
+      { streamId },
+      transportCb
+    );
+    const transportId = transportCb.mock.calls[0][0].id;
+
+    // שולטים ידנית בזמן שבו validateParticipantRole מסיימת
+    let resolveRole;
+    mockGameParticipantFindFirst.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRole = resolve;
+        })
+    );
+
+    const produceCb = vi.fn();
+    const producePromise = hostSocket.handlers[SOCKET_EVENTS.STREAM.PRODUCE](
+      {
+        transportId,
+        kind: 'video',
+        rtpParameters: { codecs: [{}], encodings: [{}] },
+        streamId,
+      },
+      produceCb
+    );
+
+    // ממתינים שה-handler יגיע ל-await validateParticipantRole —
+    // transport.produce() כבר resolved (microtask ראשון),
+    // ואז הקוד ממשיך ומגיע ל-findFirst (microtask שני)
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // עכשיו resolveRole מוכן — מדמים disconnect שקרה בדיוק בזמן הזה
+    mockProducer.closed = true;
+    resolveRole(null);
+
+    await producePromise;
+
+    // ה-guard מנע שידור NEW_PRODUCER ל-producer שכבר היה closed
+    const newProducerEmits = io.emitTracker.filter(
       ({ args }) =>
         args[0] === SOCKET_EVENTS.STREAM.NEW_PRODUCER &&
-        args[1].producerId === playerProducer.id
+        args[1].producerId === 'producer-8b'
     );
-    const payload = emit.args[1];
+    expect(newProducerEmits.length).toBe(0);
 
-    // ערכים דטרמיניסטיים: producerId / role / streamId / userId
-    expect(payload).toMatchObject({
-      producerId: playerProducer.id,
-      role: 'PLAYER',
-      streamId,
-      userId: 'player-user',
-    });
-    // נוכחות שדות מצב-המדיה (הערכים מגיעים מ-producer.kind/paused בפרודקשן;
-    // כאן המוק לא מגדיר אותם, אבל החוזה מחייב שהמפתחות ישודרו)
-    expect(payload).toHaveProperty('kind');
-    expect(payload).toHaveProperty('paused');
-    expect(Object.keys(payload).sort()).toEqual(
-      ['kind', 'paused', 'producerId', 'role', 'streamId', 'userId'].sort()
-    );
-  });
-
-  it('9b. JOIN currentProducers נושא userId לכל producer', async () => {
-    const hostSocket = createMockSocket('host-socket-9b', 'host-user');
-    const playerSocket = createMockSocket('player-socket-9b', 'player-user');
-    setGameParticipantRole('player-user', 'PLAYER');
-
-    const { hostProducerId, playerProducers } = await setupRoomWithProducer({
-      io,
-      streamId,
-      hostSocket,
-      playerSocket,
-      producerCount: 2,
-    });
-
-    const viewerSocket = createMockSocket('viewer-socket-9b', 'viewer-user');
-    registerStreamHandlers(io, viewerSocket);
-    const joinCb = vi.fn();
-    await viewerSocket.handlers[SOCKET_EVENTS.STREAM.JOIN](
-      { streamId },
-      joinCb
-    );
-    const { currentProducers } = joinCb.mock.calls[0][0];
-
-    currentProducers.forEach((p) => expect(p).toHaveProperty('userId'));
-    expect(
-      currentProducers.find((p) => p.producerId === hostProducerId).userId
-    ).toBe('host-user');
-    playerProducers.forEach((pr) => {
-      expect(currentProducers.find((p) => p.producerId === pr.id).userId).toBe(
-        'player-user'
-      );
-    });
+    // ה-role לא נשמר ב-producerRoles עבור producer שכבר נסגר
+    const streamRoom = streams[streamId];
+    expect(streamRoom.producerRoles?.['producer-8b']).toBeUndefined();
   });
 });

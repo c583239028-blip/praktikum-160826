@@ -1,11 +1,12 @@
 // Daily cron job (midnight) — soft delete after 30 days, hard delete after 31 days for unpinned games
 import cron from 'node-cron';
-import prisma from '../lib/prisma.js';
-import { logger } from '@worldplay/shared';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export function startCleanupJob() {
   cron.schedule('0 0 * * *', async () => {
-    logger.info('[Cron] Starting daily cleanup...');
+    console.log('[Cron] Starting daily cleanup...');
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -22,7 +23,7 @@ export function startCleanupJob() {
       },
       data: { isDeleted: true },
     });
-    logger.info(`[Cron] Soft deleted: ${logicalDelete.count} records`);
+    console.log(`[Cron] Soft deleted: ${logicalDelete.count} records`);
 
     // Step 2: Hard delete — games older than 31 days with no pinned activity
     const gamesToDelete = await prisma.game.findMany({
@@ -53,7 +54,7 @@ export function startCleanupJob() {
       });
       await prisma.game.deleteMany({ where: { id: { in: gameIds } } });
 
-      logger.info(`[Cron] Hard deleted: ${gameIds.length} games`);
+      console.log(`[Cron] Hard deleted: ${gameIds.length} games`);
     }
   });
 }

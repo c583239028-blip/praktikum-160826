@@ -16,10 +16,6 @@ jest.mock('react-native', () => ({
     allowRTL: jest.fn(),
     forceRTL: jest.fn(),
   },
-  AppState: {
-    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
-    currentState: 'active',
-  },
 }));
 
 jest.mock('expo-updates', () => ({
@@ -27,10 +23,7 @@ jest.mock('expo-updates', () => ({
 }));
 
 jest.mock('expo-localization', () => ({
-  // Device locale is Hebrew so these tests exercise the RTL path (SCRUM-127):
-  // resolveDeviceLanguage() follows the device locale first, so an 'en' device
-  // here would resolve to LTR and never hit the branch under test.
-  getLocales: () => [{ languageCode: 'he' }],
+  getLocales: () => [{ languageCode: 'en' }],
 }));
 
 jest.mock('../src/assets/locales/en/common.json', () => ({}), {
@@ -43,26 +36,10 @@ jest.mock('../src/assets/locales/he/common.json', () => ({}), {
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
 // relies on i18next auto-invoking detect() during init(); setImmediate lets async mocks settle.
-// Returns the whole module (not just .default) so tests can also reach
-// applyPendingRTLReload — the post-mount trigger that actually performs the reload.
 function loadI18nAndWaitForDetection() {
   let i18nModule;
   jest.isolateModules(() => {
-    // jest.setup.js initializes the shared i18next singleton globally, once, before
-    // every suite runs (so LoginScreen.test.js etc. get real translated strings).
-    // isolateModules gives src/i18n.js a fresh module registry, but the i18next
-    // *instance* it pulls in is still the one already initialized in jest.setup.js —
-    // isolateModules doesn't clear that. As a result, src/i18n.js's own
-    // i18n.use(...).init(...) call becomes a no-op re-init on an already-initialized
-    // instance, and the language-detection callback (which drives the RTL-mismatch
-    // reload logic under test here) never fires.
-    //
-    // Force isInitialized back to false so src/i18n.js's init() actually runs its
-    // detection/callback chain fresh, the way it would on a real cold app launch.
-    const i18nSingleton = require('i18next');
-    i18nSingleton.isInitialized = false;
-
-    i18nModule = require('../src/i18n');
+    i18nModule = require('../src/i18n').default;
   });
   return new Promise((resolve) => setImmediate(() => resolve(i18nModule)));
 }
@@ -72,7 +49,7 @@ function loadI18nAndWaitForDetection() {
 describe('applyRTL – loop guard (SCRUM-127)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default: no saved language, no RTL flag, native direction LTR
+    // Default: no saved language, no RTL flag, device is LTR
     AsyncStorage.getItem.mockResolvedValue(null);
     AsyncStorage.setItem.mockResolvedValue(undefined);
     AsyncStorage.removeItem.mockResolvedValue(undefined);
@@ -80,7 +57,7 @@ describe('applyRTL – loop guard (SCRUM-127)', () => {
     Updates.reloadAsync.mockResolvedValue(undefined);
   });
 
-  test('defers the reload on first RTL mismatch, then fires it once post-mount', async () => {
+  test('triggers at least one reload on first RTL mismatch, and sets the guard flag', async () => {
     I18nManager.isRTL = false;
     // Saved language is Hebrew, no reload flag yet → first-time mismatch
     AsyncStorage.getItem.mockImplementation((key) => {
@@ -88,38 +65,30 @@ describe('applyRTL – loop guard (SCRUM-127)', () => {
       return Promise.resolve(null); // rtl-reload-pending not set
     });
 
-    const i18nModule = await loadI18nAndWaitForDetection();
+    await loadI18nAndWaitForDetection();
 
-    // init() must NOT reload directly — doing so during i18next init races with
-    // native module registration on the New Architecture (see src/i18n.js). It
-    // only marks a pending reload and persists the guard flag as the target
-    // DIRECTION ('rtl'/'ltr'), not a boolean.
-    expect(Updates.reloadAsync).not.toHaveBeenCalled();
+    // The mismatch must trigger at least one reload...
+    expect(Updates.reloadAsync).toHaveBeenCalled();
+    // persisting the guard flag here is what prevents the infinite loop on the next launch
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(
       'rtl-reload-pending',
-      'rtl'
+      'true'
     );
-
-    // The actual reload is triggered later, once, from RootLayout after mount.
-    await i18nModule.applyPendingRTLReload();
-    expect(Updates.reloadAsync).toHaveBeenCalledTimes(1);
   });
 
-  test('does NOT call reloadAsync on the post-reload launch (flag matches target)', async () => {
+  test('does NOT call reloadAsync on the post-reload launch (flag is set)', async () => {
     I18nManager.isRTL = false;
     AsyncStorage.getItem.mockImplementation((key) => {
       if (key === 'user-language') return Promise.resolve('he');
-      // Guard flag stores the target direction, not a boolean.
-      if (key === 'rtl-reload-pending') return Promise.resolve('rtl');
+      if (key === 'rtl-reload-pending') return Promise.resolve('true');
       return Promise.resolve(null);
     });
 
     await loadI18nAndWaitForDetection();
 
-    // core regression guard for SCRUM-127: once the flag matches the target
-    // direction, the loop guard fires and no second reload is requested
+    // core regression guard for SCRUM-127: once the flag is set, no second reload should fire
     expect(Updates.reloadAsync).not.toHaveBeenCalled();
-    // Flag must be cleared once the guard fires
+    // Flag must be cleared after the guard fires
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith('rtl-reload-pending');
   });
 

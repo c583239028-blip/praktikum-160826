@@ -1,6 +1,5 @@
 // מטפל בשמירת כרטיסי אשראי (דרך Stripe token) ויצירת טרנזקציות
 import financeService from '../services/finance.service.js';
-import { logger } from '@worldplay/shared';
 
 const financeController = {
   async addCreditCard(req, res) {
@@ -24,7 +23,7 @@ const financeController = {
 
       res.status(201).json({ message: 'הכרטיס נשמר בהצלחה', card });
     } catch (error) {
-      logger.error('Save Card Error:', error);
+      console.error('Save Card Error:', error);
       res.status(500).json({ error: 'שגיאה בשמירת הכרטיס' });
     }
   },
@@ -48,7 +47,7 @@ const financeController = {
 
       res.status(201).json({ message: 'הטרנזקציה נוצרה', transaction });
     } catch (error) {
-      logger.error('Transaction Error:', error);
+      console.error('Transaction Error:', error);
       res.status(500).json({ error: 'שגיאה ביצירת הטרנזקציה' });
     }
   },

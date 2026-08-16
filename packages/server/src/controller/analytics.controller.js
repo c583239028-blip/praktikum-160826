@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES, logger } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 import analyticsService from '../services/analytics.service.js';
 export const reportAnalytics = async (req, res) => {
   try {
@@ -12,7 +12,7 @@ export const reportAnalytics = async (req, res) => {
       log: newLog,
     });
   } catch (error) {
-    logger.error('Error reporting analytics:', error);
+    console.error('Error reporting analytics:', error);
     res.status(500).json({ error: ERROR_MESSAGES.FAILED_TO_REPORT_ANALYTICS });
   }
 };

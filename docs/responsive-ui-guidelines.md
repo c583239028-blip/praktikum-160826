@@ -1,8 +1,8 @@
 # Responsive UI Guidelines — HyPulse Client (Android + iOS)
 
 > How we build screens so the **same code looks right on every phone**, both platforms, both
-> orientations of the notch/status-bar. Companion to [SPEC.md](spec/SPEC.md) (behavior) and
-> [FIGMA-SCREENS.md](spec/FIGMA-SCREENS.md) (screen inventory). Stack: Expo SDK 54, RN 0.81, expo-router.
+> orientations of the notch/status-bar. Companion to [SPEC.md](../SPEC.md) (behavior) and
+> [FIGMA-SCREENS.md](../FIGMA-SCREENS.md) (screen inventory). Stack: Expo SDK 54, RN 0.81, expo-router.
 
 ## TL;DR — there is no "magic template", there is a shared layer
 

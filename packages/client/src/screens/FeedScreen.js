@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FlatList, RefreshControl, StyleSheet } from 'react-native';
-import { logger } from '@worldplay/shared';
 import { useRouter } from 'expo-router';
 import StreamCard from '../components/StreamCard';
 import EmptyFeed from '../components/EmptyFeed';
@@ -27,7 +26,7 @@ export default function FeedScreen() {
       setStreams(data.streams ?? []);
     } catch (err) {
       setError(err);
-      logger.error('[FeedScreen]', err);
+      console.error('[FeedScreen]', err);
     } finally {
       setLoading(false);
       setRefreshing(false);

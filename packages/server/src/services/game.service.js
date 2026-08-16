@@ -20,26 +20,11 @@
 import prisma from '../lib/prisma.js';
 import permissionsService from './permissions.service.js';
 import * as gameRules from '../services/validation.service.js';
-import { ERROR_MESSAGES, JOIN_ELIGIBILITY_STATUS } from '@worldplay/shared';
-import { GameStatus, StreamStatus, UserRole } from '@prisma/client';
-import streamService from './stream.service.js';
-
-async function _cancelFreezeAndFinishStreams(streamIds) {
-  for (const streamId of streamIds) {
-    await streamService.cancelFreeze(streamId);
-  }
-  await prisma.stream.updateMany({
-    where: { id: { in: streamIds } },
-    data: { status: StreamStatus.FINISHED, endTime: new Date() },
-  });
-}
+import { ERROR_MESSAGES } from '@worldplay/shared';
 
 async function cancelOldGames(userId) {
   const oldGames = await prisma.game.findMany({
-    where: {
-      hostId: userId,
-      status: { in: [GameStatus.WAITING, GameStatus.ACTIVE] },
-    },
+    where: { hostId: userId, status: { in: ['WAITING', 'ACTIVE'] } },
     select: { id: true, streamId: true },
   });
 
@@ -50,14 +35,19 @@ async function cancelOldGames(userId) {
 
   await prisma.game.updateMany({
     where: { id: { in: gameIds } },
-    data: { status: GameStatus.FINISHED },
+    data: { status: 'FINISHED' },
   });
 
-  if (streamIds.length > 0) await _cancelFreezeAndFinishStreams(streamIds);
+  if (streamIds.length > 0) {
+    await prisma.stream.updateMany({
+      where: { id: { in: streamIds } },
+      data: { status: 'FINISHED' },
+    });
+  }
 }
 
 const gameService = {
-  async createGame(userId, { title, description, moderatorId, gameType }) {
+  async createGame(userId, { title, description, moderatorId }) {
     await cancelOldGames(userId);
     await gameRules.validateHostIsAvailable(userId);
 
@@ -66,7 +56,7 @@ const gameService = {
         data: {
           title: `Stream for: ${title}`,
           hostId: userId,
-          status: StreamStatus.WAITING,
+          status: 'WAITING',
         },
       });
 
@@ -77,8 +67,7 @@ const gameService = {
           streamId: newStream.id,
           moderatorId: moderatorId || null,
           hostId: userId,
-          status: GameStatus.WAITING,
-          gameType,
+          status: 'WAITING',
         },
       });
 
@@ -86,7 +75,7 @@ const gameService = {
         data: {
           gameId: newGame.id,
           userId: userId,
-          role: UserRole.HOST,
+          role: 'HOST',
         },
       });
 
@@ -94,7 +83,7 @@ const gameService = {
         data: {
           userId: userId,
           gameId: newGame.id,
-          relationType: UserRole.HOST,
+          relationType: 'HOST',
         },
       });
 
@@ -102,25 +91,15 @@ const gameService = {
     });
   },
 
-  async joinGame(gameId, userId, role = UserRole.PLAYER) {
+  async joinGame(gameId, userId, role = 'PLAYER') {
     const eligibility = await gameRules.validateJoinEligibility(
       gameId,
       userId,
       role
     );
 
-    // streamId lives on Game, not on GameParticipant — attach it so the caller can route the joiner into the live stream
-    const game = await prisma.game.findUnique({
-      where: { id: gameId },
-      select: { streamId: true },
-    });
-    const streamId = game?.streamId ?? null;
-
-    if (eligibility.status === JOIN_ELIGIBILITY_STATUS.ALREADY_JOINED) {
-      return {
-        participant: { ...eligibility.participant, streamId },
-        alreadyJoined: true,
-      };
+    if (eligibility.status === 'ALREADY_JOINED') {
+      return { participant: eligibility.participant, alreadyJoined: true };
     }
 
     const newParticipant = await prisma.gameParticipant.create({
@@ -139,10 +118,7 @@ const gameService = {
       },
     });
 
-    return {
-      alreadyJoined: false,
-      participant: { ...newParticipant, streamId },
-    };
+    return { alreadyJoined: false, participant: newParticipant };
   },
 
   async updateGameStatus(gameId, userId, newStatus) {
@@ -153,9 +129,9 @@ const gameService = {
     const dataToUpdate = { status: newStatus };
     const now = new Date();
 
-    if (newStatus === GameStatus.ACTIVE && !game.startedAt) {
+    if (newStatus === 'ACTIVE' && !game.startedAt) {
       dataToUpdate.startedAt = now;
-    } else if (newStatus === GameStatus.FINISHED) {
+    } else if (newStatus === 'FINISHED') {
       dataToUpdate.finishedAt = now;
     }
 
@@ -164,8 +140,12 @@ const gameService = {
       data: dataToUpdate,
     });
 
-    if (newStatus === GameStatus.FINISHED && game.streamId)
-      await _cancelFreezeAndFinishStreams([game.streamId]);
+    if (newStatus === 'FINISHED' && game.streamId) {
+      await prisma.stream.update({
+        where: { id: game.streamId },
+        data: { status: 'FINISHED', endTime: new Date() },
+      });
+    }
 
     return updatedGame;
   },
@@ -181,7 +161,7 @@ const gameService = {
     return await prisma.game.findMany({
       where: {
         hostId: { in: followingIds },
-        status: { in: [GameStatus.WAITING, GameStatus.ACTIVE] },
+        status: { in: ['WAITING', 'ACTIVE'] },
       },
       include: {
         host: { select: { username: true, followersCount: true } },
@@ -228,11 +208,9 @@ const gameService = {
 
     return {
       all: withBreakdown,
-      asHost: withBreakdown.filter((a) => a.relationType === UserRole.HOST),
+      asHost: withBreakdown.filter((a) => a.relationType === 'HOST'),
       asPlayer: withBreakdown.filter((a) =>
-        [UserRole.PLAYER, UserRole.VIEWER, UserRole.MODERATOR].includes(
-          a.relationType
-        )
+        ['PLAYER', 'VIEWER', 'MODERATOR'].includes(a.relationType)
       ),
     };
   },
@@ -295,39 +273,6 @@ const gameService = {
     return participants.map((p) => ({
       ...p,
       score: Number(p.score),
-    }));
-  },
-
-  async resolveQuestion(gameId, questionId, moderatorId) {
-    const game = await gameRules.ensureGameExists(gameId);
-
-    if (!game.moderatorId || game.moderatorId !== moderatorId) {
-      throw new Error(ERROR_MESSAGES.NOT_AUTHORIZED_TO_RESOLVE_QUESTION);
-    }
-
-    // Atomic guard (isResolved: false in the WHERE) prevents a race condition
-    // when the same moderator double-submits (e.g. network lag + retry tap).
-    // count === 0 can mean either "not found" or "already resolved" — we
-    // can't distinguish without a separate read, which would reopen the
-    // race window. QUESTION_ALREADY_RESOLVED is used for both, since a
-    // double-submit is the far more likely real-world cause.
-    const { count } = await prisma.question.updateMany({
-      where: { id: questionId, gameId, isResolved: false },
-      data: { isResolved: true },
-    });
-
-    if (count === 0) {
-      throw new Error(ERROR_MESSAGES.QUESTION_ALREADY_RESOLVED);
-    }
-
-    const answers = await prisma.userAnswer.findMany({
-      where: { questionId },
-      include: { option: true },
-    });
-
-    return answers.map((answer) => ({
-      userId: answer.userId,
-      type: answer.option.isCorrect ? 'win' : 'lose',
     }));
   },
 };

@@ -16,15 +16,28 @@ import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily } from '../../../../constants/design';
 import BackSvg from '../../../../assets/icons/back.svg';
 import VectorSvg from '../../../../assets/icons/vectore.svg';
-import { createQuestion } from '../../../services/questionsApi';
+import { apiFetch } from '../../../services/apiHelpers';
 import {
   TIME_LIMIT_OPTIONS,
   DEFAULT_TIME_LIMIT,
 } from '../../../../constants/timeLimits';
 import { TimeLimitSelector } from './TimeLimitSelector';
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const scaleW = SCREEN_WIDTH / 375;
 const scaleH = SCREEN_HEIGHT / 812;
+
+// MOCK — remove before pushing to git
+const mockSubmitQuestion = async (payload) => {
+  console.log('[MOCK] POST /api/questions', payload);
+  await new Promise((res) => setTimeout(res, 800));
+  return { id: 'mock-q-001', ...payload };
+};
+
+const mockSaveDraft = async (payload) => {
+  console.log('[MOCK] Draft saved', payload);
+  await new Promise((res) => setTimeout(res, 400));
+};
 
 // ─── REUSABLE: BOTTOM BUTTON ──────────────────────────────────────────────────
 function BottomButton({
@@ -122,13 +135,25 @@ export function AddQuestionForm({
         .filter((o) => o.trim().length > 0)
         .map((o) => ({ text: o.trim() }));
 
-      // responseTime (seconds) maps to the backend `timeLimit` field.
-      await createQuestion({
+      await mockSubmitQuestion({
         gameId,
         questionText: questionText.trim(),
         options: filledOptions,
-        timeLimit: responseTime,
+        responseTimeSec: responseTime,
       });
+
+      // TODO: remove mock above and uncomment before pushing to git:
+      // await apiFetch(`${API_URL}/api/questions`, {
+      //     method: 'POST',
+      //     body: JSON.stringify({
+      //         gameId,
+      //         questionText: questionText.trim(),
+      //         rewardType: 'STANDARD',
+      //         options: filledOptions,
+      //         // TODO: confirm responseTimeSec field exists in backend createQuestion
+      //         responseTimeSec: responseTime,
+      //     }),
+      // });
 
       onQuestionAdded();
       onClose();
@@ -140,25 +165,23 @@ export function AddQuestionForm({
   };
 
   const handleSaveDraft = async () => {
-    setSavingDraft(true);
-    setError(null);
-    try {
-      // Drafts go through the same endpoint with isDraft:true. The server still
-      // requires questionText + >= 2 options, so filter blanks like publish does.
-      const filledOptions = options
-        .filter((o) => o.trim().length > 0)
-        .map((o) => ({ text: o.trim() }));
+    // TODO: no draft endpoint or store defined yet.
+    //       Options: POST /api/questions/drafts | AsyncStorage | Zustand store.
 
-      await createQuestion({
+    setSavingDraft(true);
+    try {
+      await mockSaveDraft({
         gameId,
-        questionText: questionText.trim(),
-        options: filledOptions,
-        timeLimit: responseTime,
-        isDraft: true,
+        questionText,
+        options,
+        responseTimeSec: responseTime,
       });
 
-      // Confirm the save by moving the moderator to the drafts list.
-      onNavigateToDrafts();
+      // TODO: remove mock above and uncomment before pushing to git:
+      // await apiFetch(`${API_URL}/api/questions/drafts`, {
+      //     method: 'POST',
+      //     body: JSON.stringify({ gameId, questionText, options, responseTimeSec: responseTime }),
+      // });
     } catch (err) {
       setError(err.message || t('addQuestion.errorDraft'));
     } finally {

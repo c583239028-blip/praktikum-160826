@@ -16,8 +16,7 @@
  * משמש את:  כל שירותי השרת
  */
 import prisma from '../lib/prisma.js';
-import { ERROR_MESSAGES, JOIN_ELIGIBILITY_STATUS } from '@worldplay/shared';
-import { GameStatus, StreamStatus, UserRole } from '@prisma/client';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 
 // --- בדיקות קיום (Existence) ---
 
@@ -54,16 +53,24 @@ export const validateEmailIsUnique = async (email) => {
   if (existingUser) throw new Error('משתמש עם אימייל זה כבר קיים.');
 };
 
+export const ensureNotificationExists = async (notificationId) => {
+  const notification = await prisma.notification.findUnique({
+    where: { id: notificationId },
+  });
+  if (!notification) throw new Error(ERROR_MESSAGES.NOTIFICATION_NOT_FOUND);
+  return notification;
+};
+
 // --- בדיקות סטטוס וזמינות ---
 
 export const validateGameIsActive = (game) => {
-  if (game.status !== GameStatus.ACTIVE) {
+  if (game.status !== 'ACTIVE') {
     throw new Error(`Action not allowed. Game is currently ${game.status}`);
   }
 };
 
 export const validateStatusTransition = (currentStatus, newStatus) => {
-  if (currentStatus === GameStatus.FINISHED)
+  if (currentStatus === 'FINISHED')
     throw new Error(ERROR_MESSAGES.GAME_ALREADY_FINISHED);
   if (currentStatus === newStatus)
     throw new Error(`Game is already ${newStatus}`);
@@ -73,7 +80,7 @@ export const validateStreamIsFree = async (streamId) => {
   const busyStreamGame = await prisma.game.findFirst({
     where: {
       streamId: streamId,
-      status: { in: [GameStatus.WAITING, GameStatus.ACTIVE] },
+      status: { in: ['WAITING', 'ACTIVE'] },
     },
   });
   if (busyStreamGame) {
@@ -87,9 +94,7 @@ export const validateUserHasNoActiveStream = async (userId) => {
   const activeStream = await prisma.stream.findFirst({
     where: {
       hostId: userId,
-      status: {
-        in: [StreamStatus.WAITING, StreamStatus.LIVE, StreamStatus.PAUSE],
-      },
+      status: { in: ['WAITING', 'LIVE', 'PAUSE'] },
     },
   });
 
@@ -104,8 +109,8 @@ export const validateHostIsAvailable = async (userId) => {
   const activeHosting = await prisma.gameParticipant.findFirst({
     where: {
       userId: userId,
-      role: UserRole.HOST,
-      game: { status: { in: [GameStatus.WAITING, GameStatus.ACTIVE] } },
+      role: 'HOST',
+      game: { status: { in: ['WAITING', 'ACTIVE'] } },
     },
     include: { game: true },
   });
@@ -125,19 +130,19 @@ export const validateJoinEligibility = async (
 ) => {
   const game = await ensureGameExists(gameId);
 
-  if (game.status === GameStatus.FINISHED)
+  if (game.status === 'FINISHED')
     throw new Error(ERROR_MESSAGES.CANNOT_JOIN_FINISHED_GAME);
 
-  if (requestedRole === UserRole.HOST && game.hostId !== userId) {
+  if (requestedRole === 'HOST' && game.hostId !== userId) {
     throw new Error(ERROR_MESSAGES.HOST_ONLY);
   }
 
-  if (requestedRole === UserRole.PLAYER) {
+  if (requestedRole === 'PLAYER') {
     const activeParticipation = await prisma.gameParticipant.findFirst({
       where: {
         userId,
-        role: UserRole.PLAYER,
-        game: { status: { in: [GameStatus.WAITING, GameStatus.ACTIVE] } },
+        role: 'PLAYER',
+        game: { status: { in: ['WAITING', 'ACTIVE'] } },
       },
       include: { game: { select: { title: true } } },
     });
@@ -154,30 +159,21 @@ export const validateJoinEligibility = async (
 
   if (existingParticipant) {
     if (existingParticipant.role === requestedRole) {
-      return {
-        status: JOIN_ELIGIBILITY_STATUS.ALREADY_JOINED,
-        participant: existingParticipant,
-      };
+      return { status: 'ALREADY_JOINED', participant: existingParticipant };
     }
     throw new Error(`Conflict: Already joined as ${existingParticipant.role}.`);
   }
 
-  return { status: JOIN_ELIGIBILITY_STATUS.ELIGIBLE, game };
+  return { status: 'ELIGIBLE', game };
 };
 
 // --- עזרים ותוכן ---
 
 export const validateQuestionData = (questionText, options) => {
-  validateQuestionText(questionText);
-  if (!Array.isArray(options) || options.length < 2)
-    throw new Error(ERROR_MESSAGES.QUESTION_OPTIONS_REQUIRED);
-};
-
-// ולידציה של טקסט שאלה בלבד — למסלול שליחת שאלת צופה (Q1b), שבו אין תשובות.
-// כלל המינימום-שתי-תשובות נאכף רק במעבר לפרסום (approve), לא בשליחה.
-export const validateQuestionText = (questionText) => {
   if (!questionText?.trim())
     throw new Error(ERROR_MESSAGES.QUESTION_TEXT_REQUIRED);
+  if (!Array.isArray(options) || options.length < 2)
+    throw new Error(ERROR_MESSAGES.QUESTION_OPTIONS_REQUIRED);
 };
 
 export const ensureChatParticipantsExist = async (senderId, receiverId) => {
@@ -202,7 +198,7 @@ export const ensureQuestionIsBetable = async (questionId) => {
 
   if (!question) throw new Error('השאלה לא נמצאה');
   if (question.isResolved) throw new Error('השאלה כבר נפתרה וסגורה ');
-  if (question.game.status !== GameStatus.ACTIVE)
+  if (question.game.status !== 'ACTIVE')
     throw new Error('המשחק אינו פעיל כרגע');
 
   return question;
@@ -222,6 +218,7 @@ export default {
   ensureStreamExists,
   ensureUserExists,
   ensureUserExistsByEmail,
+  ensureNotificationExists,
   validateEmailIsUnique,
   validateUserHasNoActiveStream,
   validateStreamIsFree,
@@ -230,7 +227,6 @@ export default {
   validateHostIsAvailable,
   validateJoinEligibility,
   validateQuestionData,
-  validateQuestionText,
   ensureChatParticipantsExist,
   ensureQuestionIsBetable,
   validateUserFunds,

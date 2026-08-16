@@ -1,0 +1,6 @@
+# Local development overrides only — not for production
+# Exposes the DB port to the host so developers can run the server locally
+services:
+  db:
+    ports:
+      - "5432:5432"

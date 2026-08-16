@@ -1,27 +1,20 @@
 import { useLocalSearchParams } from 'expo-router';
-import { SOCKET_EVENTS, logger } from '@worldplay/shared';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-
+import { SOCKET_EVENTS } from '@worldplay/shared';
+import React, { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import {
   View,
   Text,
   StyleSheet,
+  SafeAreaView,
   Button,
   TextInput,
   Alert,
   I18nManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  connectAppSocket,
-  connectMediaSocket,
-  emitMediaPromise,
-  watchStreamRoom,
-  leaveStreamRoom,
-} from '../services/socket.service';
-import { useDispatch, useSelector } from 'react-redux';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { initGameSession, resetSession } from '../store/slices/gameStreamSlice';
+import { connectAppSocket, emitPromise } from '../services/socket.service';
+import { MediasoupManager } from '../services/MediasoupManager';
+import { RTCView, MediaStream } from '@livekit/react-native-webrtc';
 import i18n from '../i18n';
 import LazyAuthModal from '../components/LazyAuthModal';
 import ErrorState from '../components/ErrorState';
@@ -31,54 +24,102 @@ import { Colors } from '../../constants/design';
 import { useAuthGuard } from '../hooks/useAuthGuard';
 import { useAuth } from '../context/AuthContext';
 import { birthdayService } from '../services/birthday.service';
-import { WinLossAnimation } from '../components/game/WinLossAnimation';
-import QuestionCard from '../components/game/QuestionCard';
-import { clearActiveQuestion } from '../store/slices/questionsSlice';
-
-export default function ViewerScreen() {
-  const [viewState, setViewState] = useState('loading');
-  const [hasInteracted, setHasInteracted] = useState(false);
-  const dispatch = useDispatch();
-  const {
-    gameId: sessionGameId,
-    streamId: sessionStreamId,
-    hlsUrl,
-  } = useSelector((state) => state.gameStream);
-  // AC1: השאלה הפעילה מגיעה מהסוקט (game:new_question → fan-out לחדר הסטרים)
-  // דרך socketMiddleware → questionsSlice. אין fetch כאן — הנתונים מגיעים
-  // מה-store בלבד. [SCRUM-187 AC4]
-  const activeQuestion = useSelector((state) => state.questions.activeQuestion);
-
-  const player = useVideoPlayer(viewState === 'live' ? hlsUrl : null, (p) => {
-    p.loop = false;
-    p.muted = false;
+// rgba derived from Colors.warning.dark (#E08835) for semi-transparent banner background
+const DVR_BANNER_BG = 'rgba(224,136,53,0.92)';
+export async function createConsumerStream(socket, producerId, targetStreamId) {
+  const caps = MediasoupManager.getRtpCapabilities();
+  const transport = await MediasoupManager.createTransport(
+    socket,
+    'recv',
+    targetStreamId
+  );
+  const consumeData = await emitPromise(SOCKET_EVENTS.STREAM.CONSUME, {
+    transportId: transport.id,
+    producerId,
+    rtpCapabilities: caps,
+    streamId: targetStreamId,
   });
+  const consumer = await transport.consume(consumeData);
+  const stream = new MediaStream([consumer.track]);
+  return { consumer, stream };
+}
 
-  const playerRef = useRef(player);
-  useEffect(() => {
-    playerRef.current = player;
-  }, [player]);
+const overlay = StyleSheet.create({
+  row: {
+    position: 'absolute',
+    bottom: 12,
+    start: 12,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 20,
+  },
+  camBox: {
+    width: 72,
+    height: 96,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.warning.dark,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  video: { position: 'absolute', width: '100%', height: '100%' },
+  label: {
+    color: Colors.surface.white,
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 2,
+  },
+});
+const PlayerCamsOverlay = ({ streams }) => {
+  if (!streams || streams.length === 0) return null;
+  return (
+    <View style={overlay.row}>
+      {streams.map((s) => (
+        <View key={s.id} style={overlay.camBox}>
+          <RTCView
+            streamURL={s.stream.toURL()}
+            style={overlay.video}
+            objectFit="cover"
+          />
+          <Text style={overlay.label} numberOfLines={1}>
+            {s.role ?? i18n.t('viewer:playerLabel')}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+};
 
-  useEffect(() => {
-    if (viewState === 'live' && hlsUrl) {
-      player.play();
-    }
-  }, [viewState, hlsUrl, player]);
+PlayerCamsOverlay.propTypes = {
+  streams: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      role: PropTypes.string,
+      stream: PropTypes.object.isRequired,
+    })
+  ),
+};
+
+PlayerCamsOverlay.defaultProps = {
+  streams: [],
+};
+export default function ViewerScreen() {
+  const [remoteStream, setRemoteStream] = useState(null);
+  const [playerStreams, setPlayerStreams] = useState([]);
+  const [viewState, setViewState] = useState('loading');
+  const [isPaused, setIsPaused] = useState(false);
+  const [hasReceivedDVREvent, setHasReceivedDVREvent] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const [status, setStatus] = useState(() =>
     i18n.t('viewer:status_waiting_for_id')
   );
-  const { streamId: routeStreamId, title } = useLocalSearchParams();
-  const resolvedStreamId = sessionStreamId ?? routeStreamId;
-  const [streamIdInput, setStreamIdInput] = useState(resolvedStreamId ?? '');
-  const autoJoinedStreamIdRef = useRef(null);
-  // The stream room this screen subscribed to, so it can be untracked on
-  // unmount and not replayed on a later reconnect after the user has left it.
-  // [INFRA/fix/socket-room-rejoin-on-reconnect]
-  const joinedStreamIdRef = useRef(null);
+  const { streamId, title } = useLocalSearchParams();
+  const [streamIdInput, setStreamIdInput] = useState(streamId ?? '');
   const { guardedAction, isModalVisible, closeAuthModal } = useAuthGuard();
   const { user, updateUser } = useAuth();
   const [showBirthday, setShowBirthday] = useState(false);
-  const [questionResult, setQuestionResult] = useState(null); // 'win' | 'lose' | null
 
   useEffect(() => {
     if (user && birthdayService.shouldShowPopup(user)) {
@@ -86,172 +127,139 @@ export default function ViewerScreen() {
     }
   }, [user]);
 
-  const joinAsViewer = useCallback(
-    async (targetStreamId) => {
-      try {
-        setStatus(i18n.t('viewer:joining_stream'));
-        setViewState('loading');
-
-        // Subscribe the viewer to the stream room on the app socket, so the
-        // question/status events fanned out to io.to(streamId) — game:new_question,
-        // question_resolved, stream_paused/resumed — actually reach them. [SCRUM-230]
-        // watchStreamRoom records the room and emits STREAM.WATCH; the emit is
-        // replayed on every (re)connect, so a viewer who drops and reconnects is
-        // put back in the room automatically — otherwise those events die silently
-        // after the first disconnect. [INFRA/fix/socket-room-rejoin-on-reconnect]
-        // connectAppSocket first so the socket exists (and the handshake starts);
-        // if it is still mid-handshake the replay-on-connect covers the join.
-        // Non-fatal: a subscribe failure must not block the video JOIN below.
-        try {
-          await connectAppSocket();
-          watchStreamRoom(targetStreamId);
-          joinedStreamIdRef.current = targetStreamId;
-        } catch (subscribeErr) {
-          logger.warn(
-            `Viewer stream subscribe failed: ${subscribeErr.message}`
-          );
-        }
-
-        // JOIN goes to the media socket. emitMediaPromise runs connectMediaSocket
-        // and waits for a real connection (with a built-in ack timeout), so the
-        // video path no longer depends on the app socket being connected.
-        const data = await emitMediaPromise(SOCKET_EVENTS.STREAM.JOIN, {
-          streamId: targetStreamId,
-        });
-
-        // game_screen arrives with a complete Redux session from joinGame.
-        // The legacy /viewer route only supplies a streamId, so initialize a
-        // viewer session for it without pretending the streamId is a gameId.
-        if (sessionStreamId !== targetStreamId) {
-          dispatch(
-            initGameSession({
-              gameId: sessionGameId,
-              streamId: targetStreamId,
-              role: 'VIEWER',
-            })
-          );
-        }
-
-        if (data.currentProducerId) {
-          setStatus(i18n.t('viewer:status_live'));
-          setViewState('live');
-        } else {
-          setStatus(i18n.t('viewer:waiting_for_host'));
-          setViewState('empty');
-        }
-      } catch (err) {
-        logger.error('Viewer join error:', err);
-        setStatus(i18n.t('viewer:status_error', { message: err.message }));
-        setViewState('error');
-      }
-    },
-    [dispatch, sessionGameId, sessionStreamId]
-  );
-
-  useEffect(() => {
-    if (
-      resolvedStreamId &&
-      autoJoinedStreamIdRef.current !== resolvedStreamId
-    ) {
-      autoJoinedStreamIdRef.current = resolvedStreamId;
-      setHasInteracted(true);
-      setStreamIdInput(resolvedStreamId);
-      joinAsViewer(resolvedStreamId);
-    }
-  }, [resolvedStreamId, joinAsViewer]);
-
-  useEffect(() => {
-    let mediaSocket;
-    let appSocket;
-
-    // STREAM.ENDED is emitted by the media server (stream.handler.js), so the
-    // viewer must listen for it on the media socket — the same socket JOIN uses.
-    // The media socket is a shared singleton, so keep a reference to this exact
-    // handler and remove only it on cleanup (not every ENDED listener).
-    const handleStreamEnded = () => {
-      setStatus(i18n.t('viewer:status_stream_ended'));
-      setViewState('ended');
-    };
-    connectMediaSocket()
-      .then((s) => {
-        if (!s) return;
-        mediaSocket = s;
-        mediaSocket.on(SOCKET_EVENTS.STREAM.ENDED, handleStreamEnded);
-      })
-      .catch((err) => logger.error('Viewer media socket error:', err));
-
-    // STREAM_PAUSED / STREAM_RESUMED stay on the app socket for now — no server
-    // emits them yet (handled separately), so migrating them here is a no-op.
-    connectAppSocket()
-      .then((s) => {
-        if (!s) return;
-        appSocket = s;
-        appSocket.on(SOCKET_EVENTS.STREAM.STREAM_PAUSED, () => {
-          playerRef.current?.pause();
-        });
-        appSocket.on(SOCKET_EVENTS.STREAM.STREAM_RESUMED, () => {
-          playerRef.current?.play();
-        });
-        appSocket.on(SOCKET_EVENTS.GAME.QUESTION_RESULT, ({ type }) => {
-          setQuestionResult(type);
-        });
-      })
-      // connectAppSocket can now reject on 'connect_error' (SCRUM-264). These
-      // status listeners are non-fatal, so swallow and warn rather than leaving
-      // an unhandled rejection on the viewer entry path.
-      .catch((err) =>
-        logger.warn(`Viewer app socket error: ${err?.message ?? err}`)
+  const consume = useCallback(async (producerId, targetId) => {
+    try {
+      const activeSocket = await connectAppSocket();
+      const { consumer, stream } = await createConsumerStream(
+        activeSocket,
+        producerId,
+        targetId
       );
+      setRemoteStream(stream);
+      setStatus(i18n.t('viewer:status_live'));
+      setViewState('live');
+      await emitPromise(SOCKET_EVENTS.STREAM.RESUME, {
+        consumerId: consumer.id,
+        streamId: targetId,
+      });
+    } catch (err) {
+      console.error('Consume error:', err);
+      setStatus(i18n.t('viewer:status_error_receiving_video'));
+      setViewState('error');
+    }
+  }, []);
 
+  // אם הגענו עם streamId מהניווט — מצטרפים אוטומטית
+  useEffect(() => {
+    if (streamId) {
+      setHasInteracted(true);
+      setStatus(i18n.t('viewer:joining_stream'));
+      setViewState('loading');
+      emitPromise(SOCKET_EVENTS.STREAM.JOIN, { streamId })
+        .then(async (data) => {
+          await MediasoupManager.initDevice(data.rtpCapabilities);
+          if (data.currentProducerId) {
+            await consume(data.currentProducerId, streamId);
+          } else {
+            setStatus(i18n.t('viewer:waiting_for_host'));
+            setViewState('empty');
+          }
+        })
+        .catch((err) => {
+          console.error('Join error:', err);
+          setStatus(i18n.t('viewer:status_error', { message: err.message }));
+          setViewState('error');
+        });
+    }
+  }, [streamId, consume]);
+
+  useEffect(() => {
+    let activeSocket;
+    connectAppSocket().then((s) => {
+      if (!s) return;
+      activeSocket = s;
+      activeSocket.on(
+        SOCKET_EVENTS.STREAM.NEW_PRODUCER,
+        async ({ producerId, role }) => {
+          if (role === 'PLAYER') {
+            try {
+              const { consumer, stream } = await createConsumerStream(
+                activeSocket,
+                producerId,
+                streamIdInput
+              );
+              setPlayerStreams((prev) => [
+                ...prev.filter((p) => p.id !== producerId),
+                { id: producerId, role, stream },
+              ]);
+              await emitPromise(SOCKET_EVENTS.STREAM.RESUME, {
+                consumerId: consumer.id,
+                streamId: streamIdInput,
+              });
+            } catch (err) {
+              console.error('Player consume error:', err);
+            }
+          } else {
+            consume(producerId, streamIdInput);
+          }
+        }
+      );
+      activeSocket.on(SOCKET_EVENTS.STREAM.ENDED, () => {
+        setRemoteStream(null);
+        setPlayerStreams([]);
+        setStatus(i18n.t('viewer:status_stream_ended'));
+        setViewState('empty');
+      });
+      activeSocket.on(SOCKET_EVENTS.STREAM.STREAM_PAUSED, () => {
+        setIsPaused(true);
+        setHasReceivedDVREvent(true);
+      });
+      activeSocket.on(SOCKET_EVENTS.STREAM.STREAM_RESUMED, () => {
+        setIsPaused(false);
+        setHasReceivedDVREvent(true);
+      });
+    });
     return () => {
-      if (mediaSocket) {
-        mediaSocket.off(SOCKET_EVENTS.STREAM.ENDED, handleStreamEnded);
+      if (activeSocket) {
+        activeSocket.off(SOCKET_EVENTS.STREAM.NEW_PRODUCER);
+        activeSocket.off(SOCKET_EVENTS.STREAM.ENDED);
+        activeSocket.off(SOCKET_EVENTS.STREAM.STREAM_PAUSED);
+        activeSocket.off(SOCKET_EVENTS.STREAM.STREAM_RESUMED);
       }
-      if (appSocket) {
-        appSocket.off(SOCKET_EVENTS.STREAM.STREAM_PAUSED);
-        appSocket.off(SOCKET_EVENTS.STREAM.STREAM_RESUMED);
-        appSocket.off(SOCKET_EVENTS.GAME.QUESTION_RESULT);
-      }
-      // Untrack the stream room so a reconnect after leaving this screen does
-      // not silently re-subscribe. [INFRA/fix/socket-room-rejoin-on-reconnect]
-      if (joinedStreamIdRef.current) {
-        leaveStreamRoom(joinedStreamIdRef.current);
-        joinedStreamIdRef.current = null;
-      }
-      dispatch(resetSession());
-      // AC2: לנקות את השאלה הפעילה ביציאה מהמסך. בלי זה שאלה שננטשה באמצע
-      // דולפת למסך הבא — markResolved מנקה רק את מסלול ה-QUESTION_RESOLVED,
-      // וכרגע זה ה-dispatcher היחיד ל-clearActiveQuestion באפליקציה. [SCRUM-187 AC4]
-      dispatch(clearActiveQuestion());
     };
-  }, [dispatch]);
+  }, [streamIdInput, consume]);
+
   const handleJoinPress = async () => {
     if (!streamIdInput) {
       Alert.alert(i18n.t('viewer:alert_enter_stream_id'));
       return;
     }
-    setHasInteracted(true);
-    await joinAsViewer(streamIdInput);
+    try {
+      setStatus(i18n.t('viewer:joining_stream'));
+      setHasInteracted(true);
+      setViewState('loading');
+      const data = await emitPromise(SOCKET_EVENTS.STREAM.JOIN, {
+        streamId: streamIdInput,
+      });
+      await MediasoupManager.initDevice(data.rtpCapabilities);
+      if (data.currentProducerId) {
+        await consume(data.currentProducerId, streamIdInput);
+      } else {
+        setStatus(i18n.t('viewer:waiting_for_host'));
+        setViewState('empty');
+      }
+    } catch (err) {
+      console.error('Join error:', err);
+      setStatus(i18n.t('viewer:status_error', { message: err.message }));
+      setViewState('error');
+    }
   };
-  // Placeholder הימור זמני עד S4/SCRUM-282 (מנגנון ה-drag + emit של place_bet
-  // בצד הלקוח). גם handleSubmitBet (הכפתור התחתון) וגם handleWager (בחירת אופציה
-  // בכרטיס) הם placeholders עד לטיקט הזה — הודעה אחת משותפת כדי לא לשכפל מחרוזת.
-  const showBetPlaceholder = () => {
+
+  const handleSubmitBet = () => {
     Alert.alert(
       i18n.t('viewer:bet_submitted_title'),
       i18n.t('viewer:bet_submitted_message')
     );
-  };
-
-  const handleSubmitBet = () => {
-    showBetPlaceholder();
-  };
-
-  // הצופה מהמר (בניגוד לשחקן שהיה קריאה-בלבד), ולכן QuestionCard חייב onWager.
-  // מגודר ב-guardedAction כי המהמר חייב להיות מחובר. ה-optionId יחווט ל-place_bet
-  // ב-S4/SCRUM-282; כרגע לא בשימוש בכוונה. [SCRUM-187 AC4]
-  const handleWager = (_optionId) => {
-    guardedAction(showBetPlaceholder);
   };
 
   const handleBirthdayConfirm = async (date) => {
@@ -261,7 +269,7 @@ export default function ViewerScreen() {
       updateUser({ dateOfBirth: iso });
       setShowBirthday(false);
     } catch (err) {
-      logger.error('Birthday save failed:', err.message);
+      console.error('Birthday save failed:', err.message);
       Alert.alert(
         i18n.t('birthday:save_error_title'),
         i18n.t('birthday:save_error_message')
@@ -294,27 +302,26 @@ export default function ViewerScreen() {
           {viewState === 'loading' && <LoadingSkeletonCard />}
           {viewState === 'error' && <ErrorState onRetry={handleJoinPress} />}
           {viewState === 'empty' && (
-            <View style={styles.emptyStateContainer}>
-              <Text style={styles.statusText}>{status}</Text>
-              <Button
-                title={i18n.t('viewer:retry_button')}
-                onPress={() => joinAsViewer(streamIdInput || resolvedStreamId)}
-                color={Colors.live}
-              />
-            </View>
-          )}
-          {viewState === 'ended' && (
             <Text style={styles.statusText}>{status}</Text>
           )}
-          {viewState === 'live' && hlsUrl && (
-            <VideoView
-              player={player}
-              style={styles.video}
-              nativeControls={false}
-              contentFit="contain"
-              allowsFullscreen={false}
-              allowsPictureInPicture={false}
-            />
+          {viewState === 'live' && remoteStream && (
+            <>
+              <RTCView
+                streamURL={remoteStream.toURL()}
+                objectFit="contain"
+                style={styles.video}
+              />
+              <PlayerCamsOverlay streams={playerStreams} />
+              {hasReceivedDVREvent && (
+                <View style={styles.dvrBanner}>
+                  <Text style={styles.dvrBannerText}>
+                    {isPaused
+                      ? i18n.t('viewer:question_active')
+                      : i18n.t('viewer:stream_resumed_message')}
+                  </Text>
+                </View>
+              )}
+            </>
           )}
         </View>
       )}
@@ -326,42 +333,8 @@ export default function ViewerScreen() {
           color={Colors.success.main}
         />
       </View>
-      {/* AC1: אוברליי השאלה צף מעל הווידאו. pointerEvents="box-none" מבטיח
-          שהמכל עצמו לא חוסם מגע — רק ילדיו (הכרטיס) מקבלים אירועים, כך שהווידאו
-          והכפתורים שמתחת נשארים לחיצים (AC3). QuestionCard מגן על עצמו עם null,
-          אבל גידור ב-activeQuestion מונע מכל absolute ריק. גידור נוסף ב-live מונע
-          מהכרטיס לצוף מעל מסך הזנת ה-streamId / loading / empty / ended — כאן
-          viewState==='live' נגזר נכון (setViewState('live') ב-JOIN). [SCRUM-187 AC4] */}
-      {viewState === 'live' && activeQuestion && (
-        <View style={styles.questionOverlay} pointerEvents="box-none">
-          <QuestionCard question={activeQuestion} onWager={handleWager} />
-        </View>
-      )}
       <LazyAuthModal visible={isModalVisible} onClose={closeAuthModal} />
       <BirthdayModal visible={showBirthday} onConfirm={handleBirthdayConfirm} />
-      {questionResult && (
-        <WinLossAnimation
-          type={questionResult}
-          onFinish={() => setQuestionResult(null)}
-        />
-      )}
-      {__DEV__ && (
-        <View style={styles.devTestContainer}>
-          <Text style={styles.devTestLabel}>🐛 DEV — K4 manual test</Text>
-          <View style={styles.devTestRow}>
-            <Button
-              title="Test Win"
-              onPress={() => setQuestionResult('win')}
-              color={Colors.success.main}
-            />
-            <Button
-              title="Test Lose"
-              onPress={() => setQuestionResult('lose')}
-              color={Colors.warning.dark}
-            />
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -400,13 +373,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   video: { width: '100%', height: '100%' },
+  dvrBanner: {
+    position: 'absolute',
+    top: 12,
+    start: 12,
+    end: 12,
+    backgroundColor: DVR_BANNER_BG,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    zIndex: 30,
+  },
+  dvrBannerText: {
+    color: Colors.neutral[900],
+    fontWeight: '700',
+    fontSize: 13,
+    textAlign: 'center',
+  },
   statusText: {
     color: Colors.text.tertiary,
     textAlign: I18nManager.isRTL ? 'right' : 'left',
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    gap: 12,
   },
   statusBadge: {
     color: Colors.warning.dark,
@@ -414,30 +400,4 @@ const styles = StyleSheet.create({
     textAlign: I18nManager.isRTL ? 'right' : 'left',
   },
   betButtonContainer: { width: '100%', alignItems: 'center', marginTop: 20 },
-  questionOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  devTestContainer: {
-    position: 'absolute',
-    top: 12,
-    end: 12,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    borderRadius: 8,
-    padding: 8,
-    zIndex: 100,
-  },
-  devTestLabel: {
-    color: Colors.surface.white,
-    fontSize: 10,
-    fontWeight: '600',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  devTestRow: { flexDirection: 'row', gap: 8 },
 });

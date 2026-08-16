@@ -1,5 +1,5 @@
 // ניהול התראות מערכת — שליפה, סימון כנקרא ויצירה פנימית מ-services
-import { ERROR_MESSAGES, logger } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 import notificationService from '../services/notification.service.js';
 
 export const getMyNotifications = async (req, res) => {
@@ -19,7 +19,7 @@ export const getMyNotifications = async (req, res) => {
       unreadCount,
     });
   } catch (error) {
-    logger.error('Error fetching notifications:', error);
+    console.error('Error fetching notifications:', error);
     res.status(500).json({
       success: false,
       message: ERROR_MESSAGES.FAILED_TO_FETCH_NOTIFICATIONS,
@@ -29,24 +29,14 @@ export const getMyNotifications = async (req, res) => {
 
 export const markAsRead = async (req, res) => {
   const { notificationId } = req.params;
-  const userId = req.user.id;
 
   try {
-    await notificationService.updateNotificationReadStatus(
-      notificationId,
-      userId
-    );
+    await notificationService.updateNotificationReadStatus(notificationId);
     res
       .status(200)
       .json({ success: true, message: 'Notification marked as read' });
   } catch (error) {
-    if (error.message === ERROR_MESSAGES.NOTIFICATION_NOT_FOUND) {
-      return res.status(404).json({
-        success: false,
-        message: ERROR_MESSAGES.NOTIFICATION_NOT_FOUND,
-      });
-    }
-    logger.error('Error marking as read:', error);
+    console.error('Error marking as read:', error);
     res.status(500).json({
       success: false,
       message: ERROR_MESSAGES.FAILED_TO_UPDATE_NOTIFICATION,
@@ -76,8 +66,8 @@ export const createTestNotification = async (req, res) => {
 export const createSystemNotification = async (userId, title, message) => {
   try {
     await notificationService.createNewNotification(userId, title, message);
-    logger.info(`Notification created for user ${userId}: ${message}`);
+    console.log(`Notification created for user ${userId}: ${message}`);
   } catch (error) {
-    logger.error('Error creating notification:', error);
+    console.error('Error creating notification:', error);
   }
 };

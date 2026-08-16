@@ -1,6 +1,5 @@
 // אימות JWT לכל בקשה — תומך בשני פורמטים של token payload (id או userId)
 import jwt from 'jsonwebtoken';
-import { logger } from '@worldplay/shared';
 
 export const authenticateToken = (req, res, next) => {
   const JWT_SECRET = process.env.JWT_SECRET;
@@ -29,7 +28,7 @@ export const authenticateToken = (req, res, next) => {
 
     next();
   } catch (error) {
-    logger.error('❌ Authentication Error:', error.message);
+    console.error('❌ Authentication Error:', error.message);
 
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({

@@ -40,15 +40,6 @@ vi.mock('../services/permissions.service.js', () => ({
   },
 }));
 
-// The MUTE/UNMUTE path calls out to the media-server over HTTP (see
-// moderation.controller.js). This is a routing/controller integration test,
-// not an integration with that real service, so it's mocked here the same
-// way moderation.controller.test.js does.
-vi.mock('../utils/moderationSocket.js', async (importOriginal) => {
-  const actual = await importOriginal();
-  return { ...actual, enforceMuteOnMediaServer: vi.fn() };
-});
-
 function buildApp() {
   const app = express();
   app.use(express.json());

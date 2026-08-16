@@ -20,12 +20,6 @@ export const getWorker = () => {
   return worker;
 };
 
-// WHY: lets the deploy healthcheck verify the process is not just listening but
-// actually has live mediasoup workers — a server with zero/closed workers can
-// answer HTTP yet carry no media at all (SCRUM-317).
-export const areWorkersReady = () =>
-  workers.length > 0 && workers.every((worker) => !worker.closed);
-
 export const createRouter = (worker) => {
   return worker.createRouter({
     mediaCodecs: config.mediasoup.router.mediaCodecs,
@@ -41,6 +35,7 @@ export const createPlainTransportForFFmpeg = async (router) => {
       ip: '127.0.0.1',
     },
     rtcpMux: true,
+    comedia: true,
   });
   return transport;
 };

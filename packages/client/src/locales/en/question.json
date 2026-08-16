@@ -1,6 +1,5 @@
 {
   "addQuestion.title": "New question",
-  "addQuestion.live": "LIVE",
   "addQuestion.tabViewerQuestions": "For viewer questions",
   "addQuestion.tabDrafts": "Drafts",
   "addQuestion.cardLabelExpanded": "Entering a new question",
@@ -16,7 +15,6 @@
   "addQuestion.errorDraft": "Error saving draft",
   "addQuestion.seconds": "sec",
   "common.live": "LIVE",
-  "live": "Live",
   "save": "Save",
   "cancel": "Cancel",
   "title": "Draft Questions",
@@ -45,7 +43,7 @@
   "draftQuestions.setResponseTime": "Set response time for question",
   "draftQuestions.setTimeInSeconds": "Set time in seconds",
   "draftQuestions.secondsUnit": "s",
-  "participantsCount": "{{count}} participants",
+  "participantsCount{{count}}": "participants{{count}}",
   "openQuestionsTitle": "Open Questions",
   "openQuestionsCount": "{{count}} open questions",
   "publishToast": "The result has been received, data analyst...",

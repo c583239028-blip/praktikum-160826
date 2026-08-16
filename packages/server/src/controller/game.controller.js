@@ -1,42 +1,31 @@
 // ניהול מחזור חיי המשחק — יצירה, הצטרפות, עדכון סטטוס, פיד והיסטוריה
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
 import gameService from '../services/game.service.js';
-import { ERROR_MESSAGES, SOCKET_EVENTS, logger } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 
 const gameController = {
   async createGame(req, res) {
     try {
       const userId = req.user.id;
-      const { title, description, moderatorId, gameType } = req.body;
+      const { title, description, moderatorId } = req.body;
 
       if (!title) {
         return res.status(400).json({
-          error: ERROR_MESSAGES.TITLE_REQUIRED,
+          error: 'חסר שדה חובה: title',
         });
       }
-
-      const validTypes = ['CLOSE_UP', 'REMOTE'];
-      if (
-        !gameType ||
-        typeof gameType !== 'string' ||
-        !validTypes.includes(gameType.toUpperCase())
-      ) {
-        return res.status(400).json({
-          error: `${ERROR_MESSAGES.INVALID_GAME_TYPE}. Allowed values: ${validTypes.join(', ')}`,
-        });
-      }
-
-      const normalizedGameType = gameType.toUpperCase();
 
       const game = await gameService.createGame(userId, {
         title,
         description,
         moderatorId,
-        gameType: normalizedGameType,
       });
 
-      res.status(201).json({ message: 'Game created successfully', game });
+      res.status(201).json({ message: 'המשחק נוצר בהצלחה', game });
     } catch (error) {
-      logger.error('Create Game Error:', error);
+      console.error('Create Game Error:', error);
 
       // שגיאת מפתח זר ב-Prisma (P2003)
       if (error.code === 'P2003') {
@@ -45,11 +34,11 @@ const gameController = {
         if (fieldName.includes('moderator_id')) {
           return res
             .status(404)
-            .json({ error: ERROR_MESSAGES.MODERATOR_NOT_FOUND });
+            .json({ error: 'המשתמש שצוין כמנחה (moderatorId) לא נמצא במערכת' });
         }
       }
 
-      res.status(500).json({ error: ERROR_MESSAGES.ERROR_CREATING_GAME });
+      res.status(500).json({ error: 'שגיאה ביצירת המשחק' });
     }
   },
 
@@ -65,7 +54,7 @@ const gameController = {
 
       if (!statusValue || !validStatuses.includes(statusValue)) {
         return res.status(400).json({
-          error: `${ERROR_MESSAGES.INVALID_STATUS}. Allowed values: ${validStatuses.join(', ')}`,
+          error: `סטטוס לא תקין. ערכים מותרים: ${validStatuses.join(', ')}`,
         });
       }
 
@@ -77,22 +66,18 @@ const gameController = {
 
       const io = req.app.get('io');
       if (io) {
-        io.emit(SOCKET_EVENTS.GAME.STATUS_UPDATE, {
+        io.emit('game_status_update', {
           gameId: id,
           status: statusValue,
         });
-        // PROD
-        logger.info(
+        console.log(
           ` Broadcasted status update for game ${id}: ${statusValue}`
         );
       }
-      res.status(200).json({
-        message: 'Game status updated successfully',
-        game: updatedGame,
-      });
+      res.status(200).json({ message: 'סטטוס המשחק עודכן', game: updatedGame });
     } catch (error) {
-      logger.error('Update Status Error:', error);
-      res.status(500).json({ error: ERROR_MESSAGES.ERROR_UPDATING_STATUS });
+      console.error('Update Status Error:', error);
+      res.status(500).json({ error: 'שגיאה בעדכון הסטטוס' });
     }
   },
 
@@ -101,27 +86,27 @@ const gameController = {
       const { id } = req.params;
       const userId = req.user.id;
       const { role } = req.body;
-      const validRoles = ['PLAYER', 'VIEWER', 'MODERATOR', 'HOST'];
+      const validRoles = ['PLAYER', 'VIEWER', 'MODERATOR', 'HOST', 'LIVE'];
       const assignedRole = role && validRoles.includes(role) ? role : 'PLAYER';
 
       const result = await gameService.joinGame(id, userId, assignedRole);
 
       if (result.alreadyJoined) {
         return res.status(200).json({
-          message: 'User is already registered for this game',
+          message: 'המשתמש כבר רשום למשחק זה',
           participant: result.participant,
         });
       }
 
       res.status(201).json({
-        message: 'Successfully joined the game!',
+        message: 'הצטרפת למשחק בהצלחה!',
         participant: result.participant,
       });
     } catch (error) {
-      logger.error('Join Game Error:', error);
+      console.error('Join Game Error:', error);
 
       if (error.message === ERROR_MESSAGES.GAME_NOT_FOUND) {
-        return res.status(404).json({ error: ERROR_MESSAGES.GAME_NOT_FOUND });
+        return res.status(404).json({ error: 'המשחק לא נמצא' });
       }
       if (error.message.includes(ERROR_MESSAGES.UNAUTHORIZED)) {
         return res.status(403).json({ error: error.message });
@@ -138,7 +123,7 @@ const gameController = {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: ERROR_MESSAGES.ERROR_JOINING_GAME });
+      res.status(500).json({ error: 'שגיאה בהצטרפות למשחק' });
     }
   },
 
@@ -148,19 +133,17 @@ const gameController = {
       const feed = await gameService.getFollowedFeed(userId);
       res.status(200).json({ success: true, data: feed });
     } catch (error) {
-      logger.error('Feed Error:', error);
-      res.status(500).json({ error: ERROR_MESSAGES.ERROR_LOADING_FEED });
+      console.error('Feed Error:', error);
+      res.status(500).json({ error: 'שגיאה בטעינת הפיד' });
     }
   },
-
   async getHistory(req, res) {
     try {
       const userId = req.user.id;
       const data = await gameService.getGameHistory(userId);
       res.status(200).json({ success: true, data });
     } catch (error) {
-      logger.error('Get History Error:', error);
-      res.status(500).json({ error: ERROR_MESSAGES.INTERNAL_PROCESSING_ERROR });
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -171,16 +154,47 @@ const gameController = {
       const data = await gameService.togglePin(userId, gameId);
       res.status(200).json({ success: true, data });
     } catch (error) {
-      logger.error('Toggle Pin Error:', error);
       if (error.message === ERROR_MESSAGES.ACTIVITY_NOT_FOUND) {
-        return res
-          .status(404)
-          .json({ error: ERROR_MESSAGES.GAME_NOT_FOUND_IN_HISTORY });
+        return res.status(404).json({ error: 'המשחק לא נמצא בהיסטוריה' });
       }
-      res.status(500).json({ error: ERROR_MESSAGES.INTERNAL_PROCESSING_ERROR });
+      res.status(500).json({ error: error.message });
     }
   },
 
+  async migrateActivities(req, res) {
+    try {
+      const participants = await prisma.gameParticipant.findMany({
+        select: {
+          userId: true,
+          gameId: true,
+          role: true,
+          joinedAt: true,
+        },
+      });
+
+      let created = 0;
+      for (const p of participants) {
+        await prisma.userGameActivity.upsert({
+          where: {
+            userId_gameId: { userId: p.userId, gameId: p.gameId },
+          },
+          update: {},
+          create: {
+            userId: p.userId,
+            gameId: p.gameId,
+            relationType: p.role,
+            isPinned: false,
+            isDeleted: false,
+          },
+        });
+        created++;
+      }
+
+      res.json({ success: true, migrated: created });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
   async getGameViewers(req, res) {
     try {
       const { gameId } = req.params;
@@ -188,32 +202,49 @@ const gameController = {
       const data = await gameService.getGameViewers(gameId, userId);
       res.status(200).json({ success: true, data });
     } catch (error) {
-      logger.error('Get Game Viewers Error:', error);
-      res.status(500).json({ error: ERROR_MESSAGES.INTERNAL_PROCESSING_ERROR });
+      res.status(500).json({ error: error.message });
     }
   },
-
   async getParticipants(req, res) {
     try {
       const { gameId } = req.params;
       const data = await gameService.getGameParticipants(gameId, req.user.id);
       res.status(200).json({ success: true, data });
     } catch (error) {
-      logger.error('Get Participants Error:', error);
       if (error.message === ERROR_MESSAGES.GAME_NOT_FOUND) {
-        return res.status(404).json({ error: ERROR_MESSAGES.GAME_NOT_FOUND });
+        return res.status(404).json({ error: 'המשחק לא נמצא' });
       }
       if (error.message === ERROR_MESSAGES.UNAUTHORIZED) {
-        return res
-          .status(403)
-          .json({ error: ERROR_MESSAGES.UNAUTHORIZED_VIEW_PARTICIPANTS });
+        return res.status(403).json({ error: 'אין הרשאה לצפות במשתתפים' });
       }
       if (error.code === 'P2023') {
-        return res.status(400).json({ error: ERROR_MESSAGES.INVALID_GAME_ID });
+        return res.status(400).json({ error: 'מזהה משחק לא תקין' });
       }
-      res
-        .status(500)
-        .json({ error: ERROR_MESSAGES.ERROR_LOADING_PARTICIPANTS });
+      res.status(500).json({ error: 'שגיאה בטעינת המשתתפים' });
+    }
+  },
+  async seedViewLogs(req, res) {
+    try {
+      await prisma.viewLog.createMany({
+        data: [
+          {
+            userId: '36d7c267-0e50-42f5-b3c9-7e057d57bb0b',
+            hostId: '36d7c267-0e50-42f5-b3c9-7e057d57bb0b',
+            gameId: '550572a6-d66b-4a2e-8050-a9c2fba8f498',
+            duration: 120,
+          },
+          {
+            userId: 'c50dd91e-8412-4120-a9a3-a3c1b34ca00b',
+            hostId: '36d7c267-0e50-42f5-b3c9-7e057d57bb0b',
+            gameId: '550572a6-d66b-4a2e-8050-a9c2fba8f498',
+            duration: 60,
+          },
+        ],
+      });
+
+      res.json({ success: true, message: 'נתוני בדיקה נוצרו' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
   },
 };

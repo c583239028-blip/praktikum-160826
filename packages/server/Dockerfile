@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:20-alpine
 WORKDIR /usr/src/app
 
 # התקנת תשתיות דרושות - שימוש ב-apk עבור Alpine
@@ -9,6 +9,7 @@ COPY package.json ./
 COPY packages/server/package*.json ./packages/server/
 COPY packages/shared/package*.json ./packages/shared/
 
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 RUN npm install
 
 COPY packages/shared/ ./packages/shared/

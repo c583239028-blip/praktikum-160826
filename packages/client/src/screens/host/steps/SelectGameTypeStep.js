@@ -31,8 +31,8 @@ export function SelectGameTypeStep({
           iconName="people"
           iconColor={Colors.secondary.default}
           popular
-          selected={value === 'CLOSE_UP'}
-          onPress={() => onChange('CLOSE_UP')}
+          selected={value === 'CLOSEUP'}
+          onPress={() => onChange('CLOSEUP')}
         />
         <GameTypeCard
           title={t('remotePlay', 'Remote play')}

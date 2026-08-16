@@ -1,5 +1,5 @@
 //     ניהול פרופיל המשתמש — שליפת יתרה וניקוד, עדכון פרטים אישיים
-import { BirthdaySchema, logger } from '@worldplay/shared';
+import { BirthdaySchema } from '@worldplay/shared';
 import userService from '../services/user.service.js';
 import prisma from '../lib/prisma.js';
 
@@ -15,7 +15,6 @@ export const getMe = async (req, res) => {
         email: true,
         dateOfBirth: true,
         walletBalance: true,
-        avatarUrl: true,
         participations: {
           where: { game: { status: 'ACTIVE' } },
           select: { gameId: true, score: true },
@@ -36,11 +35,10 @@ export const getMe = async (req, res) => {
       email: userProfile.email,
       dateOfBirth: userProfile.dateOfBirth,
       walletCoins: Number(userProfile.walletBalance),
-      avatarUrl: userProfile.avatarUrl,
       scoresByGame,
     });
   } catch (error) {
-    logger.error('Error in getMe:', error);
+    console.error('Error in getMe:', error);
     res.status(500).json({ message: 'שגיאה פנימית בשרת' });
   }
 };
@@ -56,7 +54,7 @@ export const updateMe = async (req, res) => {
         .status(400)
         .json({ message: 'מספר הטלפון כבר קיים במערכת למשתמש אחר' });
     }
-    logger.error('Error in updateMe:', error);
+    console.error(error);
     res.status(500).json({ message: 'שגיאה בעדכון פרטים' });
   }
 };
@@ -78,7 +76,7 @@ export const updateBirthday = async (req, res) => {
     if (error.message === 'USER_NOT_FOUND') {
       return res.status(404).json({ message: 'משתמש לא נמצא' });
     }
-    logger.error('Error in updateBirthday:', error);
+    console.error('Error in updateBirthday:', error);
     res.status(500).json({ message: 'שגיאה פנימית בשרת' });
   }
 };

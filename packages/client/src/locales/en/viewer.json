@@ -7,6 +7,10 @@
   "stream_id_placeholder": "Enter Stream ID",
   "join_button": "Join Stream",
   "submit_bet_button": "Submit Bet",
+  "question_active": "Question active",
+  "stream_resumed_message": "Resuming stream",
+  "status_error_receiving_video": "Error receiving video",
+  "playerLabel": "Player",
   "joining_stream": "Joining stream...",
   "waiting_for_host": "Connected. Waiting for host to start streaming...",
   "rejected_title": "Invitation Declined",
@@ -27,6 +31,5 @@
   "viewerQuestionsCount": "{{count}} Questions",
   "default_title": "Watch Stream",
   "status_waiting_for_id": "Waiting for stream ID...",
-  "alert_enter_stream_id": "Please enter a stream ID",
-  "retry_button": "Try Again"
+  "alert_enter_stream_id": "Please enter a stream ID"
 }

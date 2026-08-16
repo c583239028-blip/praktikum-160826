@@ -69,13 +69,13 @@ describe('LoginScreen', () => {
   it('2. כפתור אפל מוצג על iOS', () => {
     mockCurrentOS = 'ios';
     const { getByText } = renderScreen();
-    expect(getByText(/Continue with Apple/i)).toBeTruthy();
+    expect(getByText(' Continue with Apple')).toBeTruthy();
   });
 
   it('3. כפתור אפל לא מוצג על אנדרואיד', () => {
     mockCurrentOS = 'android';
     const { queryByText } = renderScreen();
-    expect(queryByText(/Continue with Apple/i)).toBeNull();
+    expect(queryByText(' Continue with Apple')).toBeNull();
   });
 
   it('4. כפתור פייסבוק מוצג תמיד', () => {
@@ -143,7 +143,7 @@ describe('LoginScreen', () => {
     const { getByText, onLoginSuccess } = renderScreen();
 
     await act(async () => {
-      fireEvent.press(getByText(/Continue with Apple/i));
+      fireEvent.press(getByText(' Continue with Apple'));
     });
 
     expect(authService.loginWithApple).toHaveBeenCalled();
@@ -162,7 +162,7 @@ describe('LoginScreen', () => {
     const { getByText } = renderScreen();
 
     await act(async () => {
-      fireEvent.press(getByText(/Continue with Apple/i));
+      fireEvent.press(getByText(' Continue with Apple'));
     });
 
     expect(Alert.alert).not.toHaveBeenCalled();
@@ -177,7 +177,7 @@ describe('LoginScreen', () => {
     const { getByText } = renderScreen();
 
     await act(async () => {
-      fireEvent.press(getByText(/Continue with Apple/i));
+      fireEvent.press(getByText(' Continue with Apple'));
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
@@ -196,7 +196,7 @@ describe('LoginScreen', () => {
     const { getByText } = renderScreen();
 
     await act(async () => {
-      fireEvent.press(getByText(/Continue with Apple/i));
+      fireEvent.press(getByText(' Continue with Apple'));
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
@@ -215,7 +215,7 @@ describe('LoginScreen', () => {
     const { getByText } = renderScreen();
 
     await act(async () => {
-      fireEvent.press(getByText(/Continue with Apple/i));
+      fireEvent.press(getByText(' Continue with Apple'));
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(

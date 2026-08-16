@@ -1,3 +1,5 @@
+import { describe, it, expect } from 'vitest';
+
 import enAuth from '../src/locales/en/auth.json';
 import enFeed from '../src/locales/en/feed.json';
 import enErrors from '../src/locales/en/errors.json';
@@ -11,7 +13,6 @@ import enHistory from '../src/locales/en/history.json';
 import enFriends from '../src/locales/en/friends.json';
 import enTabbar from '../src/locales/en/tabbar.json';
 import enCommon from '../src/locales/en/common.json';
-import enQuestion from '../src/locales/en/question.json';
 
 import heAuth from '../src/locales/he/auth.json';
 import heFeed from '../src/locales/he/feed.json';
@@ -26,7 +27,6 @@ import heHistory from '../src/locales/he/history.json';
 import heFriends from '../src/locales/he/friends.json';
 import heTabbar from '../src/locales/he/tabbar.json';
 import heCommon from '../src/locales/he/common.json';
-import heQuestion from '../src/locales/he/question.json';
 
 // Map of namespace name -> { en, he } resource objects.
 // Add a new entry here whenever a new namespace/locale file pair is introduced.
@@ -44,7 +44,6 @@ const NAMESPACES = {
   friends: { en: enFriends, he: heFriends },
   tabbar: { en: enTabbar, he: heTabbar },
   common: { en: enCommon, he: heCommon },
-  question: { en: enQuestion, he: heQuestion },
 };
 
 describe('i18n locale integrity (B3b)', () => {
@@ -59,7 +58,10 @@ describe('i18n locale integrity (B3b)', () => {
         const heKeys = new Set(Object.keys(he));
         const missingInHe = enKeys.filter((key) => !heKeys.has(key));
 
-        expect(missingInHe).toEqual([]);
+        expect(
+          missingInHe,
+          `Missing Hebrew translations for keys: ${missingInHe.join(', ')} in namespace "${namespace}"`
+        ).toEqual([]);
       });
 
       it('every Hebrew key has a matching English key (no orphan keys)', () => {
@@ -67,7 +69,10 @@ describe('i18n locale integrity (B3b)', () => {
         const enKeys = new Set(Object.keys(en));
         const missingInEn = heKeys.filter((key) => !enKeys.has(key));
 
-        expect(missingInEn).toEqual([]);
+        expect(
+          missingInEn,
+          `Orphan Hebrew keys with no English counterpart: ${missingInEn.join(', ')} in namespace "${namespace}"`
+        ).toEqual([]);
       });
 
       it('no key has an empty string value in either language', () => {
@@ -82,8 +87,8 @@ describe('i18n locale integrity (B3b)', () => {
           )
           .map(([key]) => key);
 
-        expect(emptyEnKeys).toEqual([]);
-        expect(emptyHeKeys).toEqual([]);
+        expect(emptyEnKeys, `Empty EN values in "${namespace}"`).toEqual([]);
+        expect(emptyHeKeys, `Empty HE values in "${namespace}"`).toEqual([]);
       });
 
       it('interpolation placeholders match between EN and HE for every key', () => {
@@ -108,7 +113,10 @@ describe('i18n locale integrity (B3b)', () => {
           }
         });
 
-        expect(mismatches).toEqual([]);
+        expect(
+          mismatches,
+          `Interpolation placeholder mismatch in "${namespace}": ${mismatches.join('; ')}`
+        ).toEqual([]);
       });
     });
   });
@@ -126,7 +134,10 @@ describe('i18n locale integrity (B3b)', () => {
     ];
 
     requiredB3bNamespaces.forEach((ns) => {
-      expect(NAMESPACES).toHaveProperty(ns);
+      expect(
+        NAMESPACES,
+        `Namespace "${ns}" is missing from NAMESPACES map`
+      ).toHaveProperty(ns);
     });
   });
 });

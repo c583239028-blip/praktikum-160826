@@ -1,16 +1,6 @@
 // src/config.js
 import os from 'os';
 
-// WHY env-driven: `app-server` only resolves inside the shared docker-compose
-// network. Once media runs on its own droplet (SCRUM-291) that hostname is
-// dead, so the target must come from the environment. The fallback keeps the
-// single-host compose deploy working with no config. Trailing slashes are
-// stripped so `http://host:8080/` does not produce a double-slash path
-// (`//api/streams`) at the call site.
-export const APP_SERVER_URL = (
-  process.env.APP_SERVER_URL || 'http://app-server:8080'
-).replace(/\/+$/, '');
-
 export const config = {
   mediasoup: {
     // מספר ה-Workers כמספר הליבות
@@ -22,7 +12,7 @@ export const config = {
         : 10000,
       rtcMaxPort: process.env.RTC_MAX_PORT
         ? parseInt(process.env.RTC_MAX_PORT)
-        : 10079,
+        : 10010, // צמצמנו ל-10 בשביל דוקר
       logLevel: 'warn',
       logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp'],
     },

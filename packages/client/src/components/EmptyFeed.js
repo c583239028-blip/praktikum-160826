@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/design';
 
 export default function EmptyFeed() {
   const { t } = useTranslation('feed');
@@ -16,15 +15,7 @@ export default function EmptyFeed() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: 48, marginBottom: Spacing.xl },
-  title: {
-    color: Colors.surface.white,
-    fontSize: FontSize.subtitleM,
-    fontWeight: FontWeight.bold,
-  },
-  subtitle: {
-    color: Colors.text.tertiary,
-    fontSize: FontSize.bodyM,
-    marginTop: Spacing.md,
-  },
+  emoji: { fontSize: 48, marginBottom: 16 },
+  title: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  subtitle: { color: '#9ca3af', fontSize: 14, marginTop: 8 },
 });

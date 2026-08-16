@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES, logger } from '@worldplay/shared';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 import feedService from '../services/feed.service.js';
 
 export const getPublicFeed = async (req, res) => {
@@ -8,7 +8,7 @@ export const getPublicFeed = async (req, res) => {
     const streams = await feedService.getPopularFeed({ page, limit });
     res.json({ streams, page, limit });
   } catch (err) {
-    logger.error('[Feed] getPublicFeed error:', err);
+    console.error('[Feed] getPublicFeed error:', err);
     res.status(500).json({ message: ERROR_MESSAGES.FAILED_TO_FETCH_FEED });
   }
 };
@@ -21,7 +21,7 @@ export const getLiveFeed = async (req, res) => {
 
     res.status(200).json(liveStreams);
   } catch (error) {
-    logger.error('Error fetching feed:', error);
+    console.error('Error fetching feed:', error);
     res.status(500).json({ error: ERROR_MESSAGES.FAILED_TO_FETCH_FEED });
   }
 };

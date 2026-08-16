@@ -1,10 +1,40 @@
-// ניהול מחזור חיי הסטרים — עצירה, חידוש וחישוב זמן השהייה המצטבר
+// ניהול מחזור חיי הסטרים — הפעלה, עצירה, חידוש וחישוב זמן השהייה המצטבר
 import streamService from '../services/stream.service.js';
-import { ERROR_MESSAGES, SOCKET_EVENTS } from '@worldplay/shared';
-import { StreamStatus } from '@prisma/client';
-import { logger } from '@worldplay/shared';
+import permissionsService from '../services/permissions.service.js';
+import { ERROR_MESSAGES } from '@worldplay/shared';
 
 const streamController = {
+  async start(req, res) {
+    const { streamId } = req.params;
+
+    try {
+      console.log(`Start request received for stream: ${streamId}`);
+
+      await permissionsService.ensureStreamHost(streamId, req.user.id);
+
+      // Response נשלח לפני await — Service ממשיך ברקע
+      res.status(200).json({
+        message: 'Stream ingestion started',
+        streamId,
+      });
+
+      await streamService.startStream(streamId, req);
+
+      console.log(`✅ Stream ${streamId} processing completed`);
+    } catch (error) {
+      console.error(`Controller Error: ${error.message}`);
+      if (!res.headersSent) {
+        if (error.message.includes('not found'))
+          return res
+            .status(404)
+            .json({ error: ERROR_MESSAGES.STREAM_NOT_FOUND });
+        if (error.message.includes(ERROR_MESSAGES.UNAUTHORIZED))
+          return res.status(403).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
+        res.status(500).json({ error: ERROR_MESSAGES.FAILED_TO_START_STREAM });
+      }
+    }
+  },
+
   async createStream(req, res) {
     try {
       const userId = req.user.id;
@@ -17,7 +47,7 @@ const streamController = {
       const stream = await streamService.createStream(userId, { title });
       res.status(201).json({ message: 'Stream created successfully', stream });
     } catch (error) {
-      logger.error('Create Stream Error:', error.message);
+      console.error('Create Stream Error:', error);
       if (error.message.includes('already have an active stream')) {
         return res
           .status(409)
@@ -40,11 +70,7 @@ const streamController = {
 
       if (io) {
         const eventName =
-          status === StreamStatus.PAUSE
-            ? SOCKET_EVENTS.STREAM.STREAM_PAUSED
-            : status === StreamStatus.LIVE
-              ? SOCKET_EVENTS.STREAM.STREAM_RESUMED
-              : SOCKET_EVENTS.STREAM.STATUS_UPDATE;
+          status === 'PAUSE' ? 'stream_paused' : 'status_update';
         io.to(id).emit(eventName, {
           id,
           status,
@@ -56,7 +82,7 @@ const streamController = {
         .status(200)
         .json({ message: 'Status updated successfully', data: result });
     } catch (error) {
-      logger.error('Update Status Error:', error.message);
+      console.error('Update Status Error:', error);
       if (error.message.includes('not found'))
         return res.status(404).json({ error: ERROR_MESSAGES.STREAM_NOT_FOUND });
       if (error.message.includes(ERROR_MESSAGES.UNAUTHORIZED))
@@ -77,12 +103,12 @@ const streamController = {
         status
       );
 
-      logger.info(
+      console.log(
         `DB Update: Stream ${streamId} is ${status}. Total pause: ${updatedStream.accumulatedPauseMs}ms`
       );
       res.json({ success: true, stream: updatedStream });
     } catch (error) {
-      logger.error('Controller Error (Status Update):', error.message);
+      console.error('Controller Error (Status Update):', error.message);
       if (error.message === ERROR_MESSAGES.UNAUTHORIZED)
         return res.status(403).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
       if (error.message === ERROR_MESSAGES.STREAM_NOT_FOUND)
@@ -90,6 +116,46 @@ const streamController = {
       if (error.message === ERROR_MESSAGES.INVALID_STATUS)
         return res.status(400).json({ error: ERROR_MESSAGES.INVALID_STATUS });
       res.status(500).json({ error: ERROR_MESSAGES.FAILED_TO_UPDATE_STREAM });
+    }
+  },
+
+  async handleQuestionPause(req, res) {
+    const { streamId } = req.body;
+    const PAUSE_TIME_SECONDS = 30;
+
+    try {
+      await streamService.updateStreamStatus(streamId, req.user.id, 'PAUSE');
+
+      req.app.get('io').to(streamId).emit('stream_paused', { streamId });
+
+      setTimeout(async () => {
+        try {
+          const stream = await streamService.getStream(streamId);
+          const updated = await streamService.autoResume(streamId, stream);
+          if (updated) {
+            req.app.get('io').to(streamId).emit('stream_resumed', { streamId });
+            console.log(`Auto-Resume: Stream ${streamId} is back LIVE.`);
+          }
+        } catch (err) {
+          console.error('Auto-Resume Error:', err.message);
+        }
+      }, PAUSE_TIME_SECONDS * 1000);
+
+      res.json({ success: true, message: 'Question pause initiated' });
+    } catch (error) {
+      console.error('Controller Error (handleQuestionPause):', error.message);
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ error: ERROR_MESSAGES.STREAM_NOT_FOUND });
+      }
+      if (error.message.includes(ERROR_MESSAGES.UNAUTHORIZED)) {
+        return res.status(403).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
+      }
+      if (error.message === ERROR_MESSAGES.INVALID_STATUS) {
+        return res.status(400).json({ error: ERROR_MESSAGES.INVALID_STATUS });
+      }
+      res
+        .status(500)
+        .json({ error: ERROR_MESSAGES.FAILED_TO_HANDLE_QUESTION_PAUSE });
     }
   },
 };

@@ -22,7 +22,7 @@ import MoreSvg from '../../../../assets/icons/more.svg'; // TODO: replace with c
  * Tapping ··· → onAdvanced(question)
  *
  * Props:
- *   question   — { id, authorName, text, answers: [{ id, text }] }
+ *   question   — { id, authorName? (optional until SCRUM-261), text, answers: [{ id, text }] }
  *   onEdit     — (question) => void
  *   onAdvanced — (question) => void
  *   onDelete   — (questionId) => void
@@ -43,14 +43,16 @@ export function DraftQuestionCard({
       {expanded ? (
         <View style={styles.expandedHeader}>
           <View style={styles.avatarSmall} />
-          <View style={styles.authorCol}>
-            <Text style={styles.authorName}>
-              {question.authorName.split(' ')[0]}
-            </Text>
-            <Text style={styles.authorName}>
-              {question.authorName.split(' ')[1] ?? ''}
-            </Text>
-          </View>
+          {question.authorName ? (
+            <View style={styles.authorCol}>
+              <Text style={styles.authorName}>
+                {question.authorName.split(' ')[0]}
+              </Text>
+              <Text style={styles.authorName}>
+                {question.authorName.split(' ')[1] ?? ''}
+              </Text>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={styles.editBtn}
             onPress={() => onEdit(question)}
@@ -80,7 +82,9 @@ export function DraftQuestionCard({
         <View style={styles.collapsedHeader}>
           <View style={styles.avatar} />
           <View style={styles.textCol}>
-            <Text style={styles.authorName}>{question.authorName}</Text>
+            {question.authorName ? (
+              <Text style={styles.authorName}>{question.authorName}</Text>
+            ) : null}
             <Text style={styles.questionText} numberOfLines={3}>
               {question.text}
             </Text>
@@ -125,7 +129,7 @@ export function DraftQuestionCard({
 DraftQuestionCard.propTypes = {
   question: PropTypes.shape({
     id: PropTypes.string.isRequired,
-    authorName: PropTypes.string.isRequired,
+    authorName: PropTypes.string,
     text: PropTypes.string.isRequired,
     answers: PropTypes.arrayOf(
       PropTypes.shape({

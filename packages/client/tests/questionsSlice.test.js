@@ -5,11 +5,7 @@ import questionsReducer, {
   selectDraftQuestions,
   selectOpenQuestions,
   selectResolvedQuestions,
-  fetchGameQuestions,
 } from '../src/store/slices/questionsSlice';
-import * as questionsApi from '../src/services/questionsApi';
-
-jest.mock('../src/services/questionsApi');
 
 describe('questionsSlice', () => {
   const initialState = {
@@ -131,41 +127,6 @@ describe('questionsSlice', () => {
     expect(state.questions).toHaveLength(2);
     expect(state.questions.find((q) => q.id === 'q1').isResolved).toBe(true);
     expect(state.questions.find((q) => q.id === 'q2').isResolved).toBe(false);
-  });
-
-  describe('fetchGameQuestions thunk', () => {
-    afterEach(() => {
-      jest.clearAllMocks();
-    });
-
-    it('dispatches setQuestionsList with the questions returned by the API', async () => {
-      const fetchedQuestions = [
-        { id: 'q1', questionText: 'Q1', isDraft: false, isResolved: false },
-        { id: 'q2', questionText: 'Q2', isDraft: true, isResolved: false },
-      ];
-      questionsApi.getGameQuestions.mockResolvedValue(fetchedQuestions);
-      const dispatch = jest.fn();
-
-      await fetchGameQuestions('game-1')(dispatch);
-
-      expect(questionsApi.getGameQuestions).toHaveBeenCalledWith('game-1');
-      expect(dispatch).toHaveBeenCalledWith(setQuestionsList(fetchedQuestions));
-    });
-
-    it('does not dispatch when the API call fails', async () => {
-      questionsApi.getGameQuestions.mockRejectedValue(
-        new Error('network error')
-      );
-      const dispatch = jest.fn();
-      const consoleErrorSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
-
-      await fetchGameQuestions('game-1')(dispatch);
-
-      expect(dispatch).not.toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
-    });
   });
 
   describe('selectors', () => {

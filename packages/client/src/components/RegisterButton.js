@@ -2,13 +2,8 @@ import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Colors, Spacing, BorderRadius, TextStyles } from '@/constants/design';
 import PropTypes from 'prop-types';
 
-export const RegisterButton = ({ icon: Icon, label, onPress, disabled }) => (
-  <TouchableOpacity
-    style={[styles.button, disabled && styles.disabled]}
-    onPress={onPress}
-    disabled={disabled}
-    activeOpacity={0.8}
-  >
+export const RegisterButton = ({ icon: Icon, label, onPress }) => (
+  <TouchableOpacity style={styles.button} onPress={onPress} activeOpacity={0.8}>
     <View style={styles.iconCircle}>
       <Icon width={24} height={24} />
     </View>
@@ -28,10 +23,6 @@ const styles = StyleSheet.create({
     paddingLeft: 3,
     gap: Spacing.md,
     borderRadius: BorderRadius.lg,
-  },
-
-  disabled: {
-    opacity: 0.5,
   },
 
   iconCircle: {
@@ -56,5 +47,4 @@ RegisterButton.propTypes = {
   icon: PropTypes.elementType.isRequired,
   label: PropTypes.string.isRequired,
   onPress: PropTypes.func.isRequired,
-  disabled: PropTypes.bool,
 };

@@ -77,10 +77,7 @@
     "moderator.publishSuccessToast": "Your question has been published successfully",
      "videoPending": "Waiting for video...",
     "showDetails": "Show details",
-    "publishSuccessToast": "Your question has been published successfully" ,
+    "publishSuccessToast": "Your question has been published successfully" 
   
-  "live_title": "LIVE",
-  "live_subtitle": "Join the stream",
-  "error_join_failed": "Failed to join the game, please try again"
 }
 

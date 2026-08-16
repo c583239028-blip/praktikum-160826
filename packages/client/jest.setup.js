@@ -51,32 +51,3 @@ jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(),
   hideAsync: jest.fn(),
 }));
-
-// ─── i18next ─────────────────────────────────────────────────
-// Fixes: LoginScreen.test.js failing with NO_I18NEXT_INSTANCE.
-// useTranslation() needs a real i18next instance initialized before any
-// component under test calls it. lng is 'en' (not 'he') because tests assert
-// against the English strings (e.g. "Sign In", "Continue with Apple").
-import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
-import enLogin from './src/locales/en/login.json';
-
-i18n.use(initReactI18next).init({
-  lng: 'en',
-  fallbackLng: 'en',
-  resources: {
-    en: {
-      login: enLogin,
-    },
-  },
-  interpolation: { escapeValue: false },
-});
-
-// ─── AppState ────────────────────────────────────────────────
-// Fixes: i18n.test.js failing with "Cannot read properties of undefined
-// (reading 'addEventListener')" — src/i18n.js calls AppState.addEventListener
-// at import time, but RN's AppState has no test-environment implementation.
-jest.mock('react-native/Libraries/AppState/AppState', () => ({
-  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
-  currentState: 'active',
-}));

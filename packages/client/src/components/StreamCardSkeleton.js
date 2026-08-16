@@ -1,21 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, Dimensions } from 'react-native';
-import { Colors, BorderRadius, Spacing } from '../../constants/design';
-import { hexToRgba } from '../utils/colorUtils';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_COUNT = 4;
-const SHIMMER_DURATION_MS = 1200;
-const THUMBNAIL_HEIGHT = 180;
-const BADGE_WIDTH = 36;
-const BADGE_HEIGHT = 20;
-const TITLE_LINE_WIDTH = '75%';
-const HOST_LINE_WIDTH = '45%';
-const VIEWERS_LINE_WIDTH = '30%';
-const TITLE_LINE_HEIGHT = 20;
-const META_LINE_HEIGHT = 16;
-const VIEWERS_LINE_MARGIN_TOP = 2;
-const SHIMMER_COLOR = hexToRgba(Colors.surface.white, 0.07);
 
 function ShimmerCard({ shimmerAnim }) {
   const translateX = shimmerAnim.interpolate({
@@ -53,7 +40,7 @@ export default function StreamCardSkeleton() {
     const loop = Animated.loop(
       Animated.timing(shimmerAnim, {
         toValue: 1,
-        duration: SHIMMER_DURATION_MS,
+        duration: 1200,
         useNativeDriver: true,
       })
     );
@@ -71,55 +58,55 @@ export default function StreamCardSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: Spacing.lg },
+  container: { padding: 12 },
   card: {
-    backgroundColor: Colors.neutral[900],
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.lg,
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    marginBottom: 12,
     overflow: 'hidden',
   },
   thumbnail: {
     width: '100%',
-    height: THUMBNAIL_HEIGHT,
-    backgroundColor: Colors.neutral[600],
+    height: 180,
+    backgroundColor: '#374151',
     overflow: 'hidden',
   },
   liveBadge: {
     position: 'absolute',
-    top: Spacing.md,
-    left: Spacing.md,
-    width: BADGE_WIDTH,
-    height: BADGE_HEIGHT,
-    borderRadius: BorderRadius.xs,
-    backgroundColor: Colors.neutral[600],
+    top: 8,
+    left: 8,
+    width: 36,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: '#374151',
     overflow: 'hidden',
   },
-  info: { padding: Spacing.lg },
+  info: { padding: 12 },
   titleLine: {
-    width: TITLE_LINE_WIDTH,
-    height: TITLE_LINE_HEIGHT,
-    borderRadius: BorderRadius.xs,
-    backgroundColor: Colors.neutral[600],
-    marginBottom: Spacing.sm,
+    width: '75%',
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: '#374151',
+    marginBottom: 4,
     overflow: 'hidden',
   },
   hostLine: {
-    width: HOST_LINE_WIDTH,
-    height: META_LINE_HEIGHT,
-    borderRadius: BorderRadius.xs,
-    backgroundColor: Colors.neutral[600],
-    marginTop: Spacing.sm,
+    width: '45%',
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: '#374151',
+    marginTop: 4,
     overflow: 'hidden',
   },
   viewersLine: {
-    width: VIEWERS_LINE_WIDTH,
-    height: META_LINE_HEIGHT,
-    borderRadius: BorderRadius.xs,
-    backgroundColor: Colors.neutral[600],
-    marginTop: VIEWERS_LINE_MARGIN_TOP,
+    width: '30%',
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: '#374151',
+    marginTop: 2,
     overflow: 'hidden',
   },
   shimmer: {
-    backgroundColor: SHIMMER_COLOR,
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
 });

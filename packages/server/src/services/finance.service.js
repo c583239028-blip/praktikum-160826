@@ -11,7 +11,7 @@
  * תלוי ב:   ספק תשלומים חיצוני (מחזיר token + last4Digits)
  * משמש את:  payment.controller.js
  */
-import prisma from '../lib/prisma.js';
+import prisma from '../config/prisma.js';
 
 const financeService = {
   async saveCreditCard(userId, { token, last4Digits, expDate, tz }) {

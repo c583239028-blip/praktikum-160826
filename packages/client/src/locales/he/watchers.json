@@ -1,0 +1,12 @@
+{
+  "watchersTitle": "צופים",
+  "watchersSearch": "חיפוש",
+  "watchersBtnSendMessage": "שלח הודעה",
+  "watchersBtnGoBack": "חזור",
+  "watchersBtnFollow": "עקוב",
+  "watchersEmpty": "לא נמצאו צופים",
+  "watchersError": "טעינת הצופים נכשלה",
+  "watchersTabInProgress": "בתהליך",
+  "watchersTabFollowers": "עוקבים",
+  "watchersTabRecommended": "מומלצים"
+}

@@ -1,0 +1,120 @@
+# Internal planning docs (private — not for repo)
+_planning/
+scripts/
+
+
+# Dependencies
+node_modules/
+packages/*/node_modules/
+
+# Security & Environment
+.env
+.env.*
+.env.development
+# ...but keep tracked example templates (no real secrets, just REPLACE_ME)
+!.env.*.example
+
+# Native certificates & keys
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+*.orig.*
+
+# Expo
+.expo/
+expo-env.d.ts
+app-example
+
+# Metro
+.metro-health-check*
+
+# Build outputs
+dist/
+dist-android/
+build/
+web-build/
+
+# Backup files
+*.old
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Databases
+packages/server/prisma/*.db
+packages/server/prisma/*.db-journal
+
+# Database backups
+*.sql
+!packages/server/prisma/migrations/**/*.sql
+
+# Native folders (Expo prebuild)
+packages/client/android/
+packages/client/ios/
+
+# Gradle
+.gradle/
+**/android/.gradle
+**/android/build
+**/local.properties
+
+# Media server streams
+packages/media-server/public/streams/*
+!packages/media-server/public/streams/.gitkeep
+
+# Media files
+*.mp4
+!packages/server/assets/animations/*.mp4
+media_files/
+packages/media-server/media_files/
+
+# System & IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Python virtualenv (local tooling only)
+.venv/
+
+# Local scripts & temp files
+test.sh
+proxy.js
+scripts/
+# but keep committed dev tooling under the server/client packages
+!packages/server/scripts/
+!packages/client/scripts/
+# and keep committed CI scripts (mock guard, D-04) — scripts/ above would ignore these
+!.github/scripts/
+!.github/scripts/**
+
+
+# Postman
+postman/
+.postman/
+
+# Claude Code (local settings)
+.claude/
+
+# Husky
+!.husky/
+
+# Firebase service account credentials (local only)
+firebase-service-account.json
+
+.infisical.json
+# Figma screen-map scratch (curated version lives in FIGMA-SCREENS.md)
+.figma-screen-index.txt
+
+# Local Figma exports for deep-dive (not committed; bypasses Netfree/API quota)
+.figma-shots/
+vault_output.txt
+
+# Generated license report (regenerate on demand)
+licenses-report.md

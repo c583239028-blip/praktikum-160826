@@ -1,0 +1,60 @@
+{
+  "name": "world-play-root",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=@worldplay/server",
+    "dev:media": "npm run dev --workspace=@worldplay/media-server",
+    "build:shared": "npm run build --workspace=@worldplay/shared",
+    "docker:up": "infisical export --format=dotenv > .env && docker compose -f docker-compose.yml -f docker-compose.local.yml up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:rebuild": "infisical export --format=dotenv > .env && docker compose -f docker-compose.yml -f docker-compose.local.yml up --build",
+    "studio": "prisma studio --port 5556 --browser none --hostname 127.0.0.1",
+    "migrate": "docker exec -it world-play-monorepo-app-server-1 npx prisma migrate dev",
+    "db:push": "docker exec -it world-play-monorepo-app-server-1 npx prisma db push",
+    "db:seed": "docker exec -it world-play-monorepo-app-server-1 npx prisma db seed",
+    "logs:app": "docker compose logs app-server -f",
+    "logs:media": "docker compose logs media-server -f",
+    "logs:db": "docker compose logs db -f",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"packages/**/*.{js,mjs,cjs,json,css,md}\"",
+    "format:check": "prettier --check \"packages/**/*.{js,mjs,cjs,json,css,md}\"",
+    "prepare": "husky",
+    "postinstall": "patch-package"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jest": "^29.15.2",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react": "^7.37.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "patch-package": "^8.0.1",
+    "prettier": "^3.7.4"
+  },
+  "lint-staged": {
+    "packages/{server,media-server,shared}/**/*.{js,mjs,cjs}": [
+      "eslint --fix"
+    ],
+    "scripts/**/*.{js,mjs,cjs}": [
+      "eslint --fix"
+    ],
+    "packages/client/**/*.{js,jsx}": [
+      "prettier --write"
+    ],
+    "packages/**/*.{json,css,md}": [
+      "prettier --write"
+    ]
+  },
+  "husky": {},
+  "dependencies": {
+    "node-cron": "^4.2.1",
+    "prop-types": "^15.8.1"
+  },
+  "version": "1.0.0"
+}

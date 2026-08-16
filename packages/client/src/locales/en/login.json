@@ -1,0 +1,16 @@
+{
+  "app_title": "HyPulse",
+  "sign_in_subtitle": "Sign In",
+  "email_placeholder": "Email",
+  "password_placeholder": "Password",
+  "sign_in_button": "Sign In",
+  "or_separator": "OR",
+  "apple_button": "Continue with Apple",
+  "facebook_button": "Continue with Facebook (Coming soon)",
+  "error_title": "Error",
+  "fill_all_fields_error": "Please fill in all fields",
+  "login_failed_title": "Login failed",
+  "login_failed_default_message": "Invalid credentials",
+  "sign_in_error_title": "Sign In Error",
+  "try_again_button": "Try Again"
+}

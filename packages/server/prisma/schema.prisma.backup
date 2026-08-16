@@ -1,0 +1,302 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(uuid())
+  username         String
+  email            String            @unique
+  password         String?
+  role             UserRole          @default(VIEWER)
+  isActive         Boolean           @default(true)
+  isVerified       Boolean           @default(false)
+  lastActiveAt     DateTime?         @map("last_active_at")
+  phoneNumber      String?           @unique
+  firebaseId       String?
+  googleId         String?           @unique
+  facebookId       String?           @unique
+  
+  // שדות ארנק
+  walletBalance Decimal  @default(1000.00) @db.Decimal(10, 2)
+  isFirstPurchase  Boolean           @default(true)
+  stripeCustomerId String?           @unique @map("stripe_customer_id")
+
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  
+  receivedMessages ChatMessage[]     @relation("Receiver")
+  sentMessages     ChatMessage[]     @relation("Sender")
+  creditCards      CreditCard[]
+  following        Follow[]          @relation("Following")
+  followedBy       Follow[]          @relation("FollowedBy")
+  participations   GameParticipant[]
+  hostedGames      Game[]            @relation("HostGames")
+  moderatedGames   Game[]            @relation("ModeratorGames")
+  notifications    Notification[]
+  hostedStreams    Stream[]          @relation("HostStreams")
+  transactions     Transaction[]
+  userAnswers      UserAnswer[]
+  points           UserPoint[]
+  hostLogs         ViewLog[]         @relation("HostLogs")
+  viewLogs         ViewLog[]         @relation("UserLogs")
+
+  @@map("users")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  content    String
+  senderId   String   @map("sender_id")
+  receiverId String   @map("receiver_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  
+  sender     User     @relation("Sender", fields: [senderId], references: [id])
+  receiver   User     @relation("Receiver", fields: [receiverId], references: [id])
+
+  @@map("chat_messages")
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower    User     @relation("Following", fields: [followerId], references: [id])
+  following   User     @relation("FollowedBy", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model ViewLog {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  hostId    String   @map("host_id")
+  gameId    String?  @map("game_id")
+  duration  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation("UserLogs", fields: [userId], references: [id])
+  host      User     @relation("HostLogs", fields: [hostId], references: [id])
+  game      Game?    @relation(fields: [gameId], references: [id])
+
+  @@map("view_logs")
+}
+
+model CreditCard {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  last4Digits String   @map("last_4_digits")
+  token       String
+  cvv         String?
+  expDate     String   @map("exp_date")
+  tz          String?
+  isDeleted   Boolean  @default(false) @map("is_deleted")
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("credit_cards")
+}
+
+model Stream {
+    id                 String       @id @default(uuid())
+  title              String
+  hostId             String       @map("host_id")
+  startTime          DateTime?    @map("start_time")
+  endTime            DateTime?    @map("end_time")
+  accumulatedPauseMs Int          @default(0)
+  status             StreamStatus @default(WAITING)
+  lastPausedAt       DateTime?    @map("last_paused_at")
+  games              Game[]
+  host               User         @relation("HostStreams", fields: [hostId], references: [id])
+
+  @@map("streams")
+}
+
+model Game {
+  id           String            @id @default(uuid())
+  title        String
+  description  String?
+  hostId       String            @map("host_id")
+  moderatorId  String?           @map("moderator_id")
+  streamId     String            @map("stream_id")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  finishedAt   DateTime?         @map("finished_at")
+  status       GameStatus        @default(WAITING)
+  startedAt    DateTime?         @map("started_at")
+  participants GameParticipant[]
+  host         User              @relation("HostGames", fields: [hostId], references: [id])
+  moderator    User?             @relation("ModeratorGames", fields: [moderatorId], references: [id])
+  stream       Stream            @relation(fields: [streamId], references: [id])
+  questions    Question[]
+  userPoints   UserPoint[]
+  viewLogs     ViewLog[]
+
+  @@map("games")
+}
+
+model GameParticipant {
+  id           String   @id @default(uuid())
+  gameId       String   @map("game_id")
+  userId       String   @map("user_id")
+  role         UserRole
+  score   Decimal @default(0.00) @db.Decimal(10, 2)  
+  
+  joinedAt     DateTime @default(now()) @map("joined_at")
+  game         Game     @relation(fields: [gameId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@unique([gameId, userId])
+  @@map("game_participants")
+}
+
+model Question {
+  id           String             @id @default(uuid())
+  gameId       String             @map("game_id")
+  questionText String             @map("question_text")
+  rewardType   QuestionRewardType @default(STANDARD) @map("reward_type")
+  isResolved   Boolean            @default(false) @map("is_resolved")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  options      QuestionOption[]
+  game         Game               @relation(fields: [gameId], references: [id])
+  answers      UserAnswer[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id             String       @id @default(uuid())
+  questionId     String       @map("question_id")
+  text           String       @map("text")
+  isCorrect      Boolean      @default(false) @map("is_correct")
+  linkedPlayerId String?      @map("linked_player_id")
+  question       Question     @relation(fields: [questionId], references: [id])
+  chosenByUsers  UserAnswer[]
+
+  @@map("question_options")
+}
+
+model UserAnswer {
+  id               String         @id @default(uuid())
+  userId           String         @map("user_id")
+  questionId       String         @map("question_id")
+  selectedOptionId String         @map("selected_option_id")
+  wager            Int            @default(0)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  question         Question       @relation(fields: [questionId], references: [id])
+  option           QuestionOption @relation(fields: [selectedOptionId], references: [id])
+  user             User           @relation(fields: [userId], references: [id])
+
+  @@unique([userId, questionId])
+  @@map("user_answers")
+}
+
+model UserPoint {
+  id            String       @id @default(uuid())
+  userId        String       @map("user_id")
+  pointType     PointType    @map("point_type")
+amount        Decimal      @db.Decimal(10, 2)
+  receivedAt    DateTime     @default(now()) @map("received_at")
+  transactionId String?      @map("transaction_id")
+  gameId        String?      @map("game_id")
+  game          Game?        @relation(fields: [gameId], references: [id])
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  user          User         @relation(fields: [userId], references: [id])
+
+  @@map("user_points")
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  userId        String            @map("user_id")
+  type          TransactionType
+  status        TransactionStatus @default(PENDING)
+  currency      CurrencyType      @default(COIN)
+amount        Decimal           @db.Decimal(10, 2)
+  gameId        String?           @map("game_id")
+  metadata      Json?
+  description   String?
+  failureReason String?           @map("failure_reason")
+  paymentMethod String?           @map("payment_method")
+  last4Digits   String?           @map("last_4_digits")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  user          User              @relation(fields: [userId], references: [id])
+  userPoints    UserPoint[]
+
+  @@map("transactions")
+}
+
+enum CurrencyType {
+  COIN
+  DIAMOND
+}
+
+enum UserRole {
+  HOST
+  PLAYER
+  MODERATOR
+  VIEWER
+}
+
+enum StreamStatus {
+  WAITING
+  PAUSE
+  LIVE
+  FINISHED
+}
+
+enum GameStatus {
+  WAITING
+  ACTIVE
+  FINISHED
+}
+
+enum PointType {
+  TRIVIA
+  GAME
+  DONATION
+  BONUS
+  PURCHASE
+}
+
+enum TransactionType {
+  PURCHASE
+  EARN
+  SPEND
+  TRANSFER
+  GIFT
+  REFUND
+  WINNER_PAYOUT
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum QuestionRewardType {
+  STANDARD
+  WINNER_TAKES_ALL
+}

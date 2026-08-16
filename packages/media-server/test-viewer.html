@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>בדיקת שידור - Media Server</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+      max-width: 900px;
+      width: 100%;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 8px 20px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 20px;
+      font-size: 0.9em;
+    }
+
+    .status.live {
+      background: #ff4444;
+      animation: pulse 2s infinite;
+    }
+
+    .status.waiting {
+      background: #f0ad4e;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .video-container {
+      position: relative;
+      background: #000;
+      aspect-ratio: 16/9;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .controls {
+      padding: 30px;
+    }
+
+    .input-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1em;
+      transition: border 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      font-size: 0.9em;
+      color: #666;
+    }
+
+    .diagnostics {
+      margin-top: 20px;
+      padding: 15px;
+      background: #eef4ff;
+      border: 1px solid #c9dcff;
+      border-radius: 8px;
+      font-size: 0.9em;
+      color: #234;
+      display: none;
+    }
+
+    .diagnostics.show {
+      display: block;
+    }
+
+    .diagnostics h3 {
+      font-size: 1em;
+      margin-bottom: 10px;
+    }
+
+    .diag-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px dashed #c9dcff;
+    }
+
+    .diag-row:last-child {
+      border-bottom: none;
+    }
+
+    .diag-value {
+      font-family: 'Consolas', monospace;
+      font-weight: 600;
+    }
+
+    .diag-value.frozen {
+      color: #c62828;
+    }
+
+    .diag-value.advancing {
+      color: #2e7d32;
+    }
+
+    .error {
+      background: #ffebee;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+      display: none;
+    }
+
+    .error.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎥 בדיקת שידור חי</h1>
+      <div class="status" id="status">⏳ ממתין</div>
+    </div>
+
+    <div class="video-container">
+      <video id="video" controls></video>
+    </div>
+
+    <div class="controls">
+      <div class="input-group">
+        <label for="streamId">🔑 Stream ID</label>
+        <input
+          type="text"
+          id="streamId"
+          placeholder="לדוגמה: test123"
+          value="test123"
+        />
+      </div>
+
+      <button onclick="loadStream()">▶️ טען שידור</button>
+
+      <div class="info">
+        <strong>💡 הוראות:</strong><br>
+        1. וודא שהשרת רץ על http://localhost:8000<br>
+        2. וודא ששולחים שידור ל-Stream ID הנכון<br>
+        3. לחץ "טען שידור" כדי להתחיל לצפות<br>
+        <br>
+        <strong>⚠️ שים לב:</strong> הצופה מפגר אחרי ה-live בכוונה
+        (catch-up buffer). אין לבצע seek או קפיצה ל-live.
+      </div>
+
+      <div class="diagnostics" id="diagnostics">
+        <h3>🔍 מצב ה-buffer</h3>
+        <div class="diag-row">
+          <span>סגמנט אחרון ב-index.m3u8:</span>
+          <span class="diag-value" id="diagLastSegment">—</span>
+        </div>
+        <div class="diag-row">
+          <span>מצב הפלייליסט:</span>
+          <span class="diag-value" id="diagAdvancing">—</span>
+        </div>
+        <div class="diag-row">
+          <span>נבדק לאחרונה:</span>
+          <span class="diag-value" id="diagCheckedAt">—</span>
+        </div>
+      </div>
+
+      <div class="error" id="error"></div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    const diagnosticsEl = document.getElementById('diagnostics');
+
+    // Retry while the stream is starting up: index.m3u8 is not written until
+    // FFmpeg has produced its first segment, so a 404 here is "not ready yet",
+    // never a fatal error.
+    const MANIFEST_RETRY_DELAY_MS = 2000;
+    const MANIFEST_MAX_RETRIES = 15;
+    const DIAGNOSTICS_INTERVAL_MS = 2000;
+
+    let hls;
+    let retryCount = 0;
+    let diagnosticsTimer = null;
+    let lastSeenSegment = null;
+
+    function updateStatus(text, state = '') {
+      statusEl.textContent = text;
+      statusEl.className = 'status' + (state ? ' ' + state : '');
+    }
+
+    function showError(message) {
+      errorEl.textContent = '❌ ' + message;
+      errorEl.classList.add('show');
+      setTimeout(() => {
+        errorEl.classList.remove('show');
+      }, 5000);
+    }
+
+    function buildStreamUrl(streamId) {
+      return `http://localhost:8000/streams/${streamId}/index.m3u8`;
+    }
+
+    // Polls index.m3u8 directly to show whether the viewer's playlist is
+    // advancing. During a question freeze the last segment stops changing
+    // while source.m3u8 keeps growing — that is the catch-up buffer working.
+    // Requires CORS access to the manifest; fails silently if unavailable.
+    async function pollDiagnostics(streamId) {
+      try {
+        const response = await fetch(buildStreamUrl(streamId), {
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const manifest = await response.text();
+        const segments = manifest
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+        if (segments.length === 0) {
+          return;
+        }
+
+        const latestSegment = segments[segments.length - 1];
+        const isAdvancing =
+          lastSeenSegment !== null && latestSegment !== lastSeenSegment;
+        const isFrozen =
+          lastSeenSegment !== null && latestSegment === lastSeenSegment;
+
+        document.getElementById('diagLastSegment').textContent = latestSegment;
+
+        const advancingEl = document.getElementById('diagAdvancing');
+
+        if (isAdvancing) {
+          advancingEl.textContent = '▶️ מתקדם';
+          advancingEl.className = 'diag-value advancing';
+        } else if (isFrozen) {
+          advancingEl.textContent = '⏸️ קפוא';
+          advancingEl.className = 'diag-value frozen';
+        }
+
+        document.getElementById('diagCheckedAt').textContent =
+          new Date().toLocaleTimeString('he-IL');
+
+        lastSeenSegment = latestSegment;
+        diagnosticsEl.classList.add('show');
+      } catch (pollError) {
+        // Most likely CORS when opening this file directly from disk.
+        // Fall back to inspecting the manifest from the container:
+        //   docker compose exec media-server tail -5 \
+        //     public/streams/<streamId>/index.m3u8
+        console.debug('Diagnostics unavailable:', pollError.message);
+      }
+    }
+
+    function startDiagnostics(streamId) {
+      stopDiagnostics();
+      lastSeenSegment = null;
+      pollDiagnostics(streamId);
+      diagnosticsTimer = setInterval(
+        () => pollDiagnostics(streamId),
+        DIAGNOSTICS_INTERVAL_MS
+      );
+    }
+
+    function stopDiagnostics() {
+      if (diagnosticsTimer) {
+        clearInterval(diagnosticsTimer);
+        diagnosticsTimer = null;
+      }
+    }
+
+    function attachHls(streamUrl, streamId) {
+      hls = new Hls({
+        debug: false,
+        enableWorker: true,
+        // Deliberately NOT low-latency. This feed is meant to run behind the
+        // live edge by the accumulated question time; low-latency mode and
+        // any catch-up playback rate would fast-forward the viewer past the
+        // freeze and defeat the buffer entirely.
+        lowLatencyMode: false,
+        maxLiveSyncPlaybackRate: 1,
+      });
+
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('✅ Manifest loaded successfully');
+        retryCount = 0;
+        updateStatus('🔴 משדר', 'live');
+        startDiagnostics(streamId);
+        video.play().catch(() => {
+          console.log('Auto-play blocked, click play button');
+        });
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (!data.fatal) {
+          return;
+        }
+
+        const isManifestMissing =
+          data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+          data.response?.code === 404;
+
+        if (isManifestMissing && retryCount < MANIFEST_MAX_RETRIES) {
+          retryCount += 1;
+          updateStatus(
+            `⏳ ממתין לתחילת השידור (${retryCount}/${MANIFEST_MAX_RETRIES})`,
+            'waiting'
+          );
+          setTimeout(() => {
+            hls.loadSource(streamUrl);
+            hls.startLoad();
+          }, MANIFEST_RETRY_DELAY_MS);
+          return;
+        }
+
+        console.error('HLS Error:', data);
+
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            showError('שגיאת רשת. וודא שהשידור פעיל ושהשרת זמין.');
+            hls.startLoad();
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            showError('שגיאת מדיה. מנסה להתאושש...');
+            hls.recoverMediaError();
+            break;
+          default:
+            showError('שגיאה קריטית. הטען מחדש את הדף.');
+            hls.destroy();
+            stopDiagnostics();
+            break;
+        }
+
+        updateStatus('❌ שגיאה');
+      });
+    }
+
+    function loadStream() {
+      const streamId = document.getElementById('streamId').value.trim();
+
+      if (!streamId) {
+        showError('נא להזין Stream ID');
+        return;
+      }
+
+      const streamUrl = buildStreamUrl(streamId);
+
+      console.log('🔍 Trying to load:', streamUrl);
+      updateStatus('⏳ טוען...', 'waiting');
+
+      retryCount = 0;
+      stopDiagnostics();
+
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari plays HLS natively.
+        video.src = streamUrl;
+        video.addEventListener('loadedmetadata', () => {
+          updateStatus('🔴 משדר', 'live');
+          startDiagnostics(streamId);
+        });
+        video.addEventListener('error', () => {
+          showError('שגיאה בטעינת הווידאו. וודא שהשידור פעיל.');
+          updateStatus('❌ שגיאה');
+        });
+        return;
+      }
+
+      if (Hls.isSupported()) {
+        attachHls(streamUrl, streamId);
+        return;
+      }
+
+      showError('הדפדפן לא תומך בהזרמת HLS');
+      updateStatus('❌ לא נתמך');
+    }
+
+    window.addEventListener('load', () => {
+      console.log('🚀 Page loaded, ready to stream');
+    });
+  </script>
+</body>
+</html>

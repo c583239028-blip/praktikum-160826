@@ -1,0 +1,335 @@
+# 🔧 Docker & PostgreSQL Troubleshooting Guide
+
+##  Table of Contents
+- [Quick Health Check](#-quick-health-check)
+- [Common Issues & Fixes](#-common-issues--fixes)
+- [Docker Cleanup & Restart](#-docker-cleanup--restart)
+- [Database Management](#-database-management)
+- [Development Commands](#-development-commands)
+
+---
+
+##  Quick Health Check
+
+```bash
+# 1. בדוק שכל הקונטיינרים רצים (צריך לראות 3: db, app-server, media-server)
+docker ps
+
+# 2. בדוק שה-DB מגיב (אמור להחזיר את גרסת PostgreSQL)
+docker exec -it world-play-monorepo-db-1 psql -U user -d worldplaydb -c "SELECT version();"
+
+# 3. בדוק שהטבלאות קיימות (אמור להראות רשימת טבלאות)
+docker exec -it world-play-monorepo-db-1 psql -U user -d worldplaydb -c "\dt"
+
+# 4. בדוק לוגים אם יש שגיאות
+docker compose logs app-server --tail 50
+docker compose logs media-server --tail 50
+docker compose logs db --tail 50
+```
+
+---
+
+##  Common Issues & Fixes
+
+### בעיה 1: פורט 5432 תפוס (Port Conflict)
+
+**תסמינים:** השגיאה `bind: address already in use` או Docker לא עולה
+
+```powershell
+# Windows: בדוק מי תופס את הפורט
+netstat -ano | findstr :5432
+
+# אם יש תהליך תקוע - סגור אותו (כמנהל מערכת)
+taskkill /PID <PID_NUMBER> /F
+
+# אם PostgreSQL מותקן מקומית - עצור את השירות
+Stop-Service postgresql*
+```
+
+```bash
+# Linux/Mac: בדוק מי תופס את הפורט
+lsof -i :5432
+
+# סגור את התהליך
+kill -9 <PID>
+```
+
+**פתרון:** אם יש PostgreSQL מקומי רץ, יש 2 אפשרויות:
+1. עצור אותו לפני הרצת Docker
+2. שנה את הפורט ב-`docker-compose.yml` ל-`"5433:5432"`
+
+---
+
+### בעיה 2: "Prisma Client Error" ב-Prisma Studio
+
+**תסמינים:** Prisma Studio לא מצליח להתחבר
+
+**סיבה:** ה-`.env` מצביע על `localhost` אבל ה-DB רץ רק בתוך Docker
+
+**פתרון:**
+```bash
+# אופציה א': הרץ Prisma Studio דרך Docker
+docker exec -it world-play-monorepo-app-server-1 npx prisma studio --port 5556
+
+# אופציה ב': חשוף את הפורט והשתמש ב-.env עם localhost
+# (וודא שיש `ports: - "5432:5432"` ב-docker-compose.yml)
+```
+
+---
+
+### בעיה 3: שינויים ב-Schema לא מתעדכנים
+
+**תסמינים:** עשית שינויים ב-`schema.prisma` אבל לא רואה אותם
+
+```bash
+# 1. צור migration חדש
+docker exec -it world-play-monorepo-app-server-1 npx prisma migrate dev --name describe_your_change
+
+# 2. אם צריך לאפס את ה-DB לגמרי (⚠️ מוחק את כל המידע!)
+docker compose down
+docker volume rm world-play-monorepo_postgres_data
+docker compose up -d
+docker exec -it world-play-monorepo-app-server-1 npx prisma migrate deploy
+```
+
+---
+
+##  Docker Cleanup & Restart
+
+### ניקוי רגיל (שומר נתונים)
+```bash
+# עצור את כל הקונטיינרים
+docker compose down
+
+# הרם מחדש
+docker compose up -d
+
+# צפה בלוגים בזמן אמת
+docker compose logs -f
+```
+
+---
+
+### ניקוי מלא (⚠️ מוחק את כל המידע!)
+
+```bash
+# 1. עצור הכל
+docker compose down
+
+# 2. מחק את ה-volume של ה-DB (כל הנתונים ימחקו!)
+docker volume rm world-play-monorepo_postgres_data
+
+# 3. (אופציונלי) נקה את כל ה-cache של Docker
+docker system prune -a --volumes
+
+# 4. הרם מחדש + build
+docker compose up --build -d
+
+# 5. וודא שהכל רץ
+docker compose ps
+```
+
+---
+
+### בניה מחדש של קונטיינר ספציפי
+
+```bash
+# אם שינית משהו רק ב-app-server
+docker compose up --build app-server -d
+
+# אם שינית משהו רק ב-media-server
+docker compose up --build media-server -d
+```
+
+---
+
+##  Database Management
+
+### גישה ישירה ל-PostgreSQL
+
+```bash
+# התחבר ל-DB באופן אינטראקטיבי
+docker exec -it world-play-monorepo-db-1 psql -U user -d worldplaydb
+
+# פקודות שימושיות בתוך psql:
+# \dt           - רשימת טבלאות
+# \d users      - מבנה הטבלה users
+# \q            - יציאה
+```
+
+---
+
+### Prisma Migrations
+
+```bash
+# הרץ migrations שטרם בוצעו
+docker exec -it world-play-monorepo-app-server-1 npx prisma migrate deploy
+
+# צור migration חדש (פיתוח)
+docker exec -it world-play-monorepo-app-server-1 npx prisma migrate dev --name your_migration_name
+
+# אפס את ה-DB לגמרי (⚠️ מחיקת כל המידע!)
+docker exec -it world-play-monorepo-app-server-1 npx prisma migrate reset
+
+# טען נתוני seed (אם יש קובץ seed)
+docker exec -it world-play-monorepo-app-server-1 npx prisma db seed
+# פותח את פריזמה לצפייה בדפדפן
+docker exec -it world-play-backend-app-server-1 npx prisma studio
+```
+
+---
+
+### Backup & Restore
+
+```bash
+# גיבוי של ה-DB
+docker exec world-play-monorepo-db-1 pg_dump -U user worldplaydb > backup_$(date +%Y%m%d).sql
+
+# שחזור מגיבוי
+docker exec -i world-play-monorepo-db-1 psql -U user -d worldplaydb < backup_20260110.sql
+```
+
+---
+
+## 🛠️ Development Commands
+
+### App Server
+
+```bash
+# הרץ Prisma Studio (ממשק לניהול DB)
+docker exec -it world-play-monorepo-app-server-1 npx prisma studio
+
+# צפה בלוגים בזמן אמת
+docker compose logs app-server -f
+
+# אתחל את השרת מחדש
+docker compose restart app-server
+```
+
+---
+
+### Media Server
+
+```bash
+# צפה בלוגים
+docker compose logs media-server -f
+
+# אתחל מחדש
+docker compose restart media-server
+```
+
+---
+
+## 🆘 Emergency Reset (כשהכל קרס)
+
+```bash
+# 1. עצור הכל
+docker compose down
+
+# 2. מחק את כל ה-volumes
+docker volume prune -f
+
+# 3. מחק את כל התמונות הישנות
+docker image prune -a -f
+
+# 4. מחק את ה-volume הספציפי
+docker volume rm world-play-monorepo_postgres_data
+
+# 5. הרם מחדש
+docker compose up --build
+
+# 6. בדוק שהכל רץ
+docker compose ps
+```
+
+---
+
+## 📝 Useful Notes
+
+- **פיתוח מקומי:** אם רוצה להריץ את הקוד מחוץ ל-Docker, צריך PostgreSQL מקומי ועדכן את `DATABASE_URL` ב-`.env`
+- **Production:** לעולם אל תשתמש ב-`docker volume rm` בסביבת ייצור!
+- **Logs:** השתמש ב-`--tail 100` כדי לראות רק את השורות האחרונות
+- **פורטים:**
+  - `8080` - App Server
+  - `8000` - Media Server
+  - `5432` - PostgreSQL
+  - `5556` - Prisma Studio (אופציונלי)
+  - `10000-10100` - WebRTC (Media Server)
+
+---
+
+## 🔗 Quick Reference
+
+```bash
+# Status check
+docker ps
+docker compose ps
+
+# Logs
+docker compose logs -f
+docker compose logs <service-name> --tail 50
+
+# Restart specific service
+docker compose restart <service-name>
+
+# Enter container shell
+docker exec -it world-play-monorepo-app-server-1 sh
+docker exec -it world-play-monorepo-db-1 bash
+
+# Clean up
+docker compose down
+docker volume prune
+docker system prune -a
+```
+
+#log
+
+docker logs world-play-backend-media-server-1
+
+---
+
+## 📱 Android / Expo - פורט תפוס
+
+### בעיה: Metro Bundler נתקע על פורט 8081
+
+**תסמינים:** `Port 8081 is being used by another process` כשמריצים `npx expo run:android`
+
+```powershell
+# בדוק מי תופס את הפורט
+netstat -ano | findstr ":8081"
+
+# סגור את התהליך (קח את ה-PID מהפקודה למעלה)
+Stop-Process -Id <PID> -Force
+
+# או בפקודה אחת:
+netstat -ano | findstr ":8081" | ForEach-Object {
+  $parts = $_ -split '\s+'; $procId = $parts[-1]
+  if ($procId -match '^\d+$') { Stop-Process -Id ([int]$procId) -Force -Confirm:$false -ErrorAction SilentlyContinue }
+}
+```
+
+### הרצה נכונה של הקליינט
+
+```powershell
+# חשוב: תמיד להריץ מתוך packages/client ולא מה-root!
+cd packages/client
+npx expo run:android
+```
+
+**סיבה:** הפרויקט הוא monorepo — ה-app.json וה-android/ נמצאים ב-packages/client.
+הרצה מה-root יוצרת android/ שגוי ו-Metro לא מוצא את קובץ ה-App.
+
+---
+
+## 🔌 Socket Service - ייבואים נכונים
+
+קובץ `socket.service.js` מייצא:
+- `connectAppSocket()` — התחברות לשרת הראשי
+- `connectMediaSocket()` — התחברות לשרת המדיה
+- `getAppSocket()` — מחזיר את ה-instance הנוכחי (סינכרוני)
+- `getMediaSocket()` — מחזיר את ה-media instance הנוכחי
+- `emitPromise(event, data)` — שליחה לשרת הראשי עם Promise
+- `emitMediaPromise(event, data)` — שליחה לשרת המדיה עם Promise
+
+**לא קיים:** `socket`, `connectSocket`, `mediaSocket` — אל תייבא אותם!
+

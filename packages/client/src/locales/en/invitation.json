@@ -1,0 +1,16 @@
+{
+  "title": {
+    "moderator": "Join the game as a host",
+    "player": "Join the game as a player"
+  },
+  "body": {
+    "moderator": "Inviting you to join the live broadcast as a host",
+    "player": "Inviting you to join the live broadcast as a player"
+  },
+  "approved": "Approved",
+  "rejected": "Rejected ({{seconds}} seconds)",
+  "rejectedMessage": {
+    "moderator": "Game moderator invitation declined",
+    "player": "Game player invitation declined"
+  }
+}

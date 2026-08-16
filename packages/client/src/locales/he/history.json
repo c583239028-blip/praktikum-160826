@@ -1,0 +1,17 @@
+{
+  "tab_all": "הכל",
+  "tab_as_host": "כמנחה",
+  "tab_as_player": "כשחקן",
+  "role_host": "מנחה",
+  "role_player": "שחקן",
+  "pin_button": "נעץ",
+  "pinned_button": "נעוץ",
+  "score_label": "ניקוד:",
+  "breakdown_questions": "שאלות: {{value}}",
+  "breakdown_gifts": "מתנות: {{value}}",
+  "breakdown_bonus": "בונוס: {{value}}",
+  "total_label": "סה\"כ: {{value}}",
+  "empty": "אין משחקים להצגה",
+  "error_prefix": "שגיאה: {{error}}",
+  "untitled_game": "—"
+}

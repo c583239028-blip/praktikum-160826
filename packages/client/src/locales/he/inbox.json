@@ -1,0 +1,9 @@
+{
+  "load_error": "טעינת ההודעות נכשלה: {{error}}",
+  "empty": "אין הודעות חדשות בתיבה",
+  "badge_gift": "מתנה",
+  "badge_follower": "עוקב",
+  "badge_system": "מערכת",
+  "mark_as_read_button": "סמן כנקרא",
+  "follow_back_button": "עקוב בחזרה"
+}

@@ -1,0 +1,19 @@
+diff --git a/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt b/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt
+index a741fde..fc01be7 100644
+--- a/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt
++++ b/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt
+@@ -37,7 +37,13 @@ object Os {
+    * Win. On Linux & Mac we'll default to return absolute path.
+    */
+   fun File.cliPath(base: File): String =
+-      if (isWindows()) {
++      // NOTE: Upstream returns a path relative to `base` on Windows to work around Gradle's poor
++      // handling of paths with spaces. In this monorepo the relativization breaks Metro/Expo entry
++      // and require.context resolution (the base differs from Metro's project root). The project
++      // path has no spaces, so always return the absolute path (matching Linux/Mac behavior).
++      if (isWindows() && !absolutePath.contains(' ')) {
++        absolutePath
++      } else if (isWindows()) {
+         this.relativeTo(base).path
+       } else {
+         absolutePath

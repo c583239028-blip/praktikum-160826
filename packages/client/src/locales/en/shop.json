@@ -1,0 +1,21 @@
+{
+  "title": "Coin Store",
+  "loading": "Loading...",
+  "balance_label": "Balance: {{amount}} coins",
+  "active_score_label": "Active score: {{amount}} pts",
+  "test_sync_button": "Test sync (bet 10 coins)",
+  "package_10_title": "10 Coins",
+  "package_50_title": "50 Coins",
+  "package_100_title": "100 Coins",
+  "most_popular_badge": "Most popular!",
+  "first_purchase_bonus": "(First purchase bonus x2!)",
+  "processing_payment": "Processing payment...",
+  "payment_success_title": "Success!",
+  "payment_success_message": "Payment complete. Balance will update in a few seconds...",
+  "payment_error_title": "Error",
+  "test_sync_error_title": "Test error",
+  "balance": "Balance: {{value}} coins",
+  "activeScore": "Active score: {{value}} pts",
+  "signOut": "Sign Out",
+  "comingSoon": "Coming soon"
+}

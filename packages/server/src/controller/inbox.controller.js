@@ -1,0 +1,77 @@
+// ניהול תיבת ההודעות הנכנסות — שליפה עם pagination וסימון כנקרא
+import { ERROR_MESSAGES, logger } from '@worldplay/shared';
+import inboxService from '../services/inbox.service.js';
+
+const inboxController = {
+  getInbox: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 5;
+
+      const result = await inboxService.getMyInbox(userId, page, limit);
+
+      return res.status(200).json({
+        success: true,
+        data: result.items,
+        pagination: {
+          page,
+          limit,
+          hasMore: result.pagination.hasMore,
+          total: result.pagination.totalCount,
+        },
+      });
+    } catch (error) {
+      logger.error('[INBOX_CONTROLLER_GET_ERROR]', error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'שגיאה בשליפת ה-Inbox',
+      });
+    }
+  },
+
+  markAsRead: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { type } = req.body;
+      const userId = req.user.id;
+
+      if (!id || !type) {
+        return res.status(400).json({
+          success: false,
+          message: 'חסרים פרמטרים לביצוע הפעולה (id או type)',
+        });
+      }
+
+      await inboxService.markItemAsRead(id, type, userId);
+
+      return res.status(200).json({
+        success: true,
+        message: 'הפריט סומן כנקרא בהצלחה',
+      });
+    } catch (error) {
+      logger.error('[INBOX_CONTROLLER_MARK_ERROR]', error.message);
+
+      if (error.message === ERROR_MESSAGES.UNAUTHORIZED) {
+        return res.status(403).json({
+          success: false,
+          message: 'אין הרשאה לבצע פעולה זו',
+        });
+      }
+
+      if (error.message.includes('Record to update not found')) {
+        return res.status(404).json({
+          success: false,
+          message: 'הפריט לא נמצא במערכת',
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        message: 'שגיאה בסימון הפריט כנקרא',
+      });
+    }
+  },
+};
+
+export default inboxController;

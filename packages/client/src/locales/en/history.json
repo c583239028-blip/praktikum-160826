@@ -1,0 +1,17 @@
+{
+  "tab_all": "All",
+  "tab_as_host": "As Host",
+  "tab_as_player": "As Player",
+  "role_host": "Host",
+  "role_player": "Player",
+  "pin_button": "Pin",
+  "pinned_button": "Pinned",
+  "score_label": "Score:",
+  "breakdown_questions": "Questions: {{value}}",
+  "breakdown_gifts": "Gifts: {{value}}",
+  "breakdown_bonus": "Bonus: {{value}}",
+  "total_label": "Total: {{value}}",
+  "empty": "No games to display",
+  "error_prefix": "Error: {{error}}",
+  "untitled_game": "—"
+}

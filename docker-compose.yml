@@ -1,0 +1,139 @@
+name: hypulse
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    # WHY journald: the default json-file driver keeps logs inside the container,
+    # so `docker compose up --build` deletes all history on every deploy — a 500
+    # reported by a tester was gone 23 min later behind the next deploy, costing a
+    # full day of diagnosis with no evidence (M11-08 / SCRUM-318). journald writes
+    # to the host journal, which survives container rebuild. The `tag` sets
+    # SYSLOG_IDENTIFIER so logs are filterable with `journalctl -t hypulse-db`.
+    logging:
+      driver: journald
+      options:
+        tag: "hypulse-db"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Publish 5432 ONLY on the app droplet's private VPC interface so the
+    # dedicated media droplet (SCRUM-291) can reach Postgres over the private
+    # network — never from the internet. DB_BIND_IP is set to the app droplet's
+    # private VPC IP in SERVER_ENV_FILE; app-server/prisma-studio still reach the
+    # DB by the `db` service name on the compose network regardless. Defaults to
+    # loopback so an empty/unset value can never re-publish 5432 to 0.0.0.0
+    # (keeps the public DB port closed — SCRUM-292 / M11-07).
+    ports:
+      - "${DB_BIND_IP:-127.0.0.1}:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app-server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    restart: unless-stopped
+    # journald so prod logs survive `--build` — rationale on the db service above.
+    logging:
+      driver: journald
+      options:
+        tag: "hypulse-app"
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Gates the deploy on the server actually serving, not just the container
+      # starting — a crash-loop still reports a green `compose up` otherwise
+      # (P3009 sat dead two days behind green deploys, 2026-07-16). /health pings
+      # the DB, so a server that is up but can't reach its database fails here
+      # instead of passing a shallow "/" check while every real request 500s.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # WHY 60s: `prisma migrate deploy` + boot run before the port listens;
+      # a shorter grace period would fail a healthy server mid-migration.
+      start_period: 60s
+
+  media-server:
+    build:
+      context: .
+      dockerfile: packages/media-server/Dockerfile
+    restart: unless-stopped
+    # journald so prod logs survive `--build` — rationale on the db service above.
+    logging:
+      driver: journald
+      options:
+        tag: "hypulse-media"
+    volumes:
+      - ./packages/media-server/public/streams:/usr/src/app/packages/media-server/public/streams
+    env_file: .env
+    ports:
+      - "8000:8000"
+      - "10000-10079:10000-10079/udp"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - ANNOUNCED_IP=${ANNOUNCED_IP}
+      # WHY: media reaches app-server by service name only on the shared compose
+      # network. On a dedicated media droplet (SCRUM-291) set this to the
+      # app-server's real URL; unset falls back to http://app-server:8080.
+      - APP_SERVER_URL=${APP_SERVER_URL:-http://app-server:8080}
+      - RTC_MIN_PORT=10000       # חשוב: אומר למדיה סרבר להשתמש בטווח הזה
+      - RTC_MAX_PORT=10079
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Same gate as app-server: a broken import path crash-looped media for
+      # 5 days behind green deploys (2026-08-03, PR#238). /health checks that
+      # live mediasoup workers exist, not just that HTTP answers.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # WHY 40s: mediasoup spins up its worker subprocesses on boot before
+      # the HTTP port listens.
+      start_period: 40s
+
+  prisma-studio:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    command: npx prisma studio --port 5556 --browser none --hostname 0.0.0.0
+    # journald so its logs survive `--build` too — rationale on the db service
+    # above. Consistent with the three running services; local override sends it
+    # back to json-file for Docker Desktop (no systemd).
+    logging:
+      driver: journald
+      options:
+        tag: "hypulse-studio"
+    # WHY 127.0.0.1: prisma studio is a full DB admin UI. Binding it to
+    # 0.0.0.0 published it to the internet (SCRUM-292 / M11-04). Bound to
+    # loopback it is reachable only via an SSH tunnel to the droplet.
+    ports:
+      - "127.0.0.1:5556:5556"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - studio
+
+volumes:
+  postgres_data:

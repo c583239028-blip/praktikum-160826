@@ -1,0 +1,9 @@
+{
+  "ConnectionsTitle": "Connections",
+  "connectionsSearch": "Search",
+  "connectionsError": "Something went wrong loading connections.",
+  "connectionsEmpty": "No connections yet.",
+  "connectionsBtnSendMessage": "Message",
+  "connectionsBtnGoBack": "Unfollow",
+  "connectionsBtnFollow": "Follow"
+}

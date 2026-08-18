@@ -1,0 +1,21 @@
+{
+  "title": "חנות מטבעות",
+  "loading": "טוען...",
+  "balance_label": "יתרה: {{amount}} מטבעות",
+  "active_score_label": "ניקוד פעיל: {{amount}} נק'",
+  "test_sync_button": "בדיקת סנכרון (הימור 10 מטבעות)",
+  "package_10_title": "10 מטבעות",
+  "package_50_title": "50 מטבעות",
+  "package_100_title": "100 מטבעות",
+  "most_popular_badge": "הכי פופולרי!",
+  "first_purchase_bonus": "(בונוס רכישה ראשונה x2!)",
+  "processing_payment": "מעבד תשלום...",
+  "payment_success_title": "בוצע בהצלחה!",
+  "payment_success_message": "התשלום הושלם. היתרה תתעדכן בעוד מספר שניות...",
+  "payment_error_title": "שגיאה",
+  "test_sync_error_title": "שגיאת בדיקה",
+  "balance": "יתרה: {{value}} מטבעות",
+  "activeScore": "ניקוד פעיל: {{value}} נק'",
+  "signOut": "התנתקות",
+  "comingSoon": "מגיע בקרוב"
+}

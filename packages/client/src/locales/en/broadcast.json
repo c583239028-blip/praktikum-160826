@@ -1,0 +1,6 @@
+{
+  "noPermissionToWriteClose": "Close",
+  "noPermissionToWriteTitle": "You can't write here",
+  "noPermissionToWriteBody": "You don't have permission to send messages in this broadcast right now.",
+  "backToGame": "Back to game"
+}

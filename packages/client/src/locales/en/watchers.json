@@ -1,0 +1,20 @@
+{
+  "title": "Watchers",
+  "search": "Search",
+  "sendMessage": "Send Message",
+  "goBack": "Go back",
+  "follow": "Follow",
+  "empty": "No watchers found",
+  "error": "Failed to load watchers",
+  "inProgress": "In progress",
+  "followers": "Followers",
+  "recommended": "Recommended",
+  "addToGroup": "Add to group",
+  "shareProfile": "Share profile",
+  "reportProfile": "Report profile",
+  "message": "Message",
+  "removeFollow": "Remove follow",
+  "suggestedAccounts": "Suggested accounts",
+  "showAll": "Show all",
+  "liveFeed": "Live feed"
+}

@@ -1,0 +1,20 @@
+{
+  "title": "צופים",
+  "search": "חיפוש",
+  "sendMessage": "שלח הודעה",
+  "goBack": "חזור",
+  "follow": "עקוב",
+  "empty": "לא נמצאו צופים",
+  "error": "טעינת הצופים נכשלה",
+  "inProgress": "בתהליך",
+  "followers": "עוקבים",
+  "recommended": "מומלצים",
+  "addToGroup": "הוסף לקבוצה",
+  "shareProfile": "שתף פרופיל",
+  "reportProfile": "דווח על פרופיל",
+  "message": "הודעה",
+  "removeFollow": "הסר עקיבה",
+  "suggestedAccounts": "חשבונות מומלצים",
+  "showAll": "הצג הכל",
+  "liveFeed": "פיד לייב"
+}

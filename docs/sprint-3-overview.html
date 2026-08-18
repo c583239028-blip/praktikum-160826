@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ספרינט 3 — השידור הופך לאמיתי | HyPulse</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:      #1F293B;
+    --ink-soft: #63656B;
+    --cyan:     #00D3F2;
+    --cyan-ink: #1C7089;
+    --cyan-bd:  #9BE7F5;
+    --purple:   #8C2ED6;
+    --line:     #DEE1E8;
+    --line-soft:#EDF0F6;
+    --tint-cyan:  #F4FDFF;
+    --tint-purple:#F7ECFF;
+  }
+
+  html { direction: rtl; }
+  body {
+    font-family: 'Rubik', 'Segoe UI', Arial, sans-serif;
+    background: #FFFFFF; color: var(--ink);
+    direction: rtl; text-align: right; font-size: 15px; line-height: 1.75;
+  }
+
+  code, .mono {
+    unicode-bidi: isolate; direction: ltr;
+    background: var(--tint-purple); color: var(--purple);
+    padding: 1px 5px; border-radius: 4px;
+    font-family: 'Courier New', monospace; font-size: 13px;
+  }
+
+  /* ── COVER ── */
+  .cover { background: linear-gradient(135deg,#1F293B 0%,#8C2ED6 58%,#00D3F2 100%); color:#fff; padding:64px 40px; text-align:center; }
+  .cover h1 { font-size:40px; font-weight:800; margin-bottom:12px; letter-spacing:-1px; }
+  .cover .sprint-title { font-size:21px; opacity:.96; margin-bottom:26px; background:rgba(255,255,255,.14); border-radius:10px; display:inline-block; padding:6px 24px; }
+  .cover .meta { display:inline-flex; gap:20px; flex-wrap:wrap; justify-content:center; background:rgba(255,255,255,.12); border-radius:12px; padding:12px 26px; font-size:13px; }
+
+  .goal-banner { background:var(--ink); color:#fff; padding:24px 40px; text-align:center; font-size:16px; line-height:1.6; }
+  .goal-banner strong { font-size:19px; display:block; margin-bottom:6px; color:var(--cyan); }
+
+  .container { max-width:1040px; margin:0 auto; padding:40px 24px; }
+
+  /* ── TOC ── */
+  .toc { border:1px solid var(--line); border-radius:14px; padding:24px 30px; margin-bottom:38px; }
+  .toc h2 { font-size:17px; margin-bottom:14px; border-bottom:2px solid var(--line-soft); padding-bottom:10px; }
+  .toc ol { padding-right:20px; columns:2; column-gap:32px; }
+  .toc li { margin-bottom:6px; }
+  .toc a { color:var(--cyan-ink); text-decoration:none; font-size:14px; }
+  .toc a:hover { text-decoration:underline; }
+
+  /* ── SECTIONS ── */
+  .section { border:1px solid var(--line); border-radius:14px; padding:30px 34px; margin-bottom:24px; }
+  .section-header { display:flex; align-items:center; gap:12px; margin-bottom:20px; padding-bottom:14px; border-bottom:2px solid var(--line-soft); }
+  .section-number { background:var(--ink); color:#fff; border-radius:10px; min-width:34px; height:34px; padding:0 8px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
+  .section h2 { font-size:21px; }
+  .section h3 { font-size:16px; margin:22px 0 10px; padding-right:12px; border-right:3px solid var(--cyan); }
+  .section h4 { font-size:14px; color:var(--ink-soft); margin:14px 0 6px; font-weight:600; }
+  .section p  { margin-bottom:10px; }
+
+  /* ── TABLES ── */
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:14px; }
+  th { background:var(--ink); color:#fff; padding:9px 13px; text-align:right; font-weight:600; }
+  td { padding:8px 13px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  tr:nth-child(even) td { background:var(--tint-cyan); }
+
+  pre { background:var(--ink); color:#ACF4FF; border-radius:10px; padding:16px 18px; margin:12px 0; overflow-x:auto; font-size:12.5px; font-family:'Courier New',monospace; line-height:1.55; direction:ltr; text-align:left; }
+
+  /* ── BADGES ── */
+  .badge { display:inline-block; padding:2px 9px; border-radius:14px; font-size:12px; font-weight:600; }
+  .badge-now   { background:var(--line-soft); color:var(--ink-soft); }
+  .badge-after { background:var(--tint-cyan); color:var(--cyan-ink); border:1px solid var(--cyan-bd); }
+
+  .note { border-right:4px solid var(--purple); background:var(--tint-purple); border-radius:10px; padding:14px 18px; margin:12px 0; font-size:14px; }
+  .note.key { border-color:var(--cyan); background:var(--tint-cyan); }
+
+  /* ════════ VISUAL DIAGRAM SYSTEM ════════ */
+  .diagram { display:flex; flex-direction:column; align-items:center; gap:4px; margin:18px 0; }
+  .drow { display:flex; flex-wrap:wrap; justify-content:center; align-items:stretch; gap:12px; }
+  .node {
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    background:#fff; border:1.5px solid var(--line); border-radius:12px;
+    padding:11px 16px; min-width:132px; text-align:center; font-size:13px; font-weight:600; color:var(--ink);
+  }
+  .node small { font-weight:400; font-size:11px; color:var(--ink-soft); }
+  .node.sm { min-width:0; padding:9px 13px; font-size:12.5px; }
+  .node.block { border-color:var(--purple); background:var(--tint-purple); color:var(--purple); }
+  .node.task  { border-color:var(--cyan-bd); background:var(--tint-cyan); color:var(--cyan-ink); }
+  .node.ghost { border-style:dashed; color:var(--ink-soft); background:#FBFBFC; }
+  .arrow-d { color:var(--cyan); font-size:22px; line-height:.9; }
+  .arrow-r { color:var(--cyan); font-size:18px; font-weight:700; align-self:center; }
+  .tag { font-size:11px; font-weight:700; border-radius:10px; padding:2px 8px; background:var(--tint-cyan); color:var(--cyan-ink); border:1px solid var(--cyan-bd); }
+  .tag.block { background:var(--tint-purple); color:var(--purple); border-color:#DEB5FF; }
+
+  /* chain row (LTR sequence with arrows) */
+  .chain { display:flex; flex-wrap:wrap; align-items:center; gap:8px; direction:ltr; justify-content:flex-start; margin:12px 0; }
+  .chain.center { justify-content:center; }
+
+  /* lanes (timeline / paths) */
+  .lane { display:flex; gap:12px; align-items:stretch; border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:10px; }
+  .lane-label { flex-shrink:0; background:var(--ink); color:#fff; border-radius:8px; padding:8px 12px; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; text-align:center; min-width:84px; }
+  .lane-label.cyan { background:var(--cyan); } .lane-label.purple { background:var(--purple); }
+  .lane-body { flex:1; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .lane-body.ltr { direction:ltr; justify-content:flex-start; }
+  .chip { background:var(--tint-cyan); border:1px solid var(--cyan-bd); color:var(--cyan-ink); border-radius:16px; padding:4px 12px; font-size:12.5px; font-weight:600; }
+  .chip.block { background:var(--tint-purple); border-color:#DEB5FF; color:var(--purple); }
+  .chip.plain { background:var(--line-soft); border-color:var(--line); color:var(--ink-soft); }
+
+  /* ── CHECKLIST ── */
+  .checklist { list-style:none; padding:0; margin:8px 0; }
+  .checklist li { padding:5px 0 5px 24px; border-bottom:1px solid var(--line-soft); font-size:14px; position:relative; }
+  .checklist li:last-child { border-bottom:none; }
+  .checklist li::before { content:''; position:absolute; left:4px; top:11px; width:7px; height:7px; border:1.5px solid var(--cyan); border-radius:2px; }
+
+  /* ── BEFORE / AFTER ── */
+  .ba { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:12px 0; }
+  .ba .col { border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .ba .now { background:#FBFBFC; } .ba .aft { background:var(--tint-cyan); border-color:var(--cyan-bd); }
+  .ba h4 { margin-bottom:8px; font-size:13px; } .ba .now h4 { color:var(--ink-soft); } .ba .aft h4 { color:var(--cyan-ink); }
+  .ba ul { padding-right:16px; font-size:13.5px; } .ba li { margin-bottom:5px; }
+
+  /* ── TASK CARD ── */
+  .task-card { border:1px solid var(--line); border-radius:12px; margin-bottom:22px; overflow:hidden; }
+  .task-card-header { padding:13px 20px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--tint-cyan); border-bottom:1px solid var(--line); }
+  .task-card-header.block { background:var(--tint-purple); border-bottom-color:#DEB5FF; }
+  .task-jira { font-size:12px; font-weight:700; padding:2px 9px; border-radius:5px; background:rgba(31,41,59,.09); }
+  .task-title { font-size:17px; font-weight:700; flex:1; }
+  .task-effort { font-size:12.5px; color:var(--ink-soft); }
+  .task-card-body { padding:18px 20px; }
+
+  @media (max-width:680px) {
+    .cover h1 { font-size:28px; }
+    .toc ol { columns:1; }
+    .section { padding:20px; }
+    .ba { grid-template-columns:1fr; }
+    .lane { flex-direction:column; }
+  }
+  @media print {
+    .section, .task-card { border:1px solid var(--line); }
+    .cover, .goal-banner, .lane-label, .section-number { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>ספרינט 3</h1>
+  <div class="sprint-title">השידור הופך לאמיתי — לולאת המשחק החיה</div>
+  <div class="meta">
+    <span>HyPulse · React Native + Mediasoup</span>
+    <span>2 שבועות</span>
+    <span>גריד חי של 2–4 מצלמות</span>
+  </div>
+</div>
+
+<div class="goal-banner">
+  <strong>מטרת הספרינט</strong>
+  לולאת המשחק רצה על דאטה אמיתי. הקלוז-אפ וגם רשת הריבוי-מצלמות מרנדרים מפיקים חיים.
+  ה-DVR מקפיא צפייה כששאלה נפתחת. רכיבים משותפים מונעים כפילויות. הכלכלה כבר לא קורסת.
+</div>
+
+<div class="container">
+
+<!-- TOC -->
+<div class="toc">
+  <h2>תוכן עניינים</h2>
+  <ol>
+    <li><a href="#s0">0 · מפת-על</a></li>
+    <li><a href="#s1">1 · לפני / אחרי</a></li>
+    <li><a href="#s2">2 · זרימת התהליך</a></li>
+    <li><a href="#s3">3 · מסלולים קריטיים</a></li>
+    <li><a href="#s4">4 · צייר זמן</a></li>
+    <li><a href="#s5">5 · מפת מסכים</a></li>
+    <li><a href="#s6">6 · כללי עבודה</a></li>
+    <li><a href="#s7">7 · תשתית (185/186)</a></li>
+    <li><a href="#s8">8 · מסכי תפקיד (A)</a></li>
+    <li><a href="#s9">9 · רשת מצלמות (J)</a></li>
+    <li><a href="#s10">10 · רכיבים משותפים (K)</a></li>
+    <li><a href="#s11">11 · כלכלה + שער (C)</a></li>
+    <li><a href="#s12">12 · DVR (D)</a></li>
+    <li><a href="#s13">13 · ניתוב + i18n</a></li>
+    <li><a href="#s14">14 · Definition of Done</a></li>
+    <li><a href="#s15">15 · לא בספרינט הזה</a></li>
+  </ol>
+</div>
+
+<!-- 0 · MAP -->
+<div class="section" id="s0">
+  <div class="section-header"><div class="section-number">0</div><h2>מפת-על — איך הכל מתחבר</h2></div>
+  <div class="note key">רוב התשתית כבר קיימת אבל לא מחוברת. הספרינט הוא בעיקרו חיווט — לחבר חתיכות קיימות כך שהשידור יקרום עור וגידים.</div>
+
+  <div class="diagram">
+    <div class="drow">
+      <div class="node block">SCRUM-185<small>Redux store</small></div>
+      <div class="node block">J1<small>איתות מפיקים</small></div>
+      <div class="node block">A1<small>HostScreen</small></div>
+    </div>
+    <div class="arrow-d">↓</div>
+    <div class="drow">
+      <div class="node task sm">K1</div><span class="arrow-r">→</span>
+      <div class="node task sm">K2</div><span class="arrow-r">→</span>
+      <div class="node task sm">K3</div>
+      <div class="node ghost sm">רכיבים משותפים</div>
+    </div>
+    <div class="arrow-d">↓</div>
+    <div class="drow">
+      <div class="node task">J2<small>CameraGrid</small></div>
+      <div class="node task">A2b<small>גריד שחקנית</small></div>
+      <div class="node task">A4a / A4b<small>מסך מנהלת</small></div>
+      <div class="node task">D2<small>DVR</small></div>
+    </div>
+    <div class="arrow-d">↓</div>
+    <div class="drow">
+      <div class="node sm">ROUTE-A</div><span class="arrow-r">→</span>
+      <div class="node sm">ROUTE-B</div>
+      <div class="node ghost sm">ניתוב כל 4 התפקידים</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>מסלול</th><th>מה הוא נותן</th><th>משימות</th></tr>
+    <tr><td>A · מסכי תפקיד</td><td>כל תפקיד מקבל מסך שמרנדר וידאו חי</td><td>A1, A2b, A4a, A4b</td></tr>
+    <tr><td>J · רשת מצלמות</td><td>השרת מודיע על מפיקים, הלקוח בונה גריד חי</td><td>J1, J2, J3</td></tr>
+    <tr><td>K · רכיבים משותפים</td><td>אטומים שמסכי התפקיד מרכיבים ולא ממציאים מחדש</td><td>K1, K2, K3</td></tr>
+    <tr><td>C · Backend / Store</td><td>נכונות: כלכלה, סכמת שאלה, שער 50 צופים, רישום store</td><td>185, 186, C4, C5</td></tr>
+    <tr><td>D · DVR</td><td>הקפאה בשאלה, שחרור בפתרון — מבוסס-אירוע</td><td>D2</td></tr>
+    <tr><td>R · ניתוב</td><td>ניתוב לכל 4 התפקידים + כניסה לשידור חי</td><td>ROUTE-A, ROUTE-B</td></tr>
+    <tr><td>B · i18n</td><td>תרגום מסכי התפקיד + תיקון RTL</td><td>B3, SCRUM-182</td></tr>
+  </table>
+</div>
+
+<!-- 1 · BEFORE/AFTER -->
+<div class="section" id="s1">
+  <div class="section-header"><div class="section-number">1</div><h2>לפני / אחרי — מה משתנה בקוד</h2></div>
+  <table>
+    <tr><th>נושא</th><th>עכשיו</th><th>אחרי ספרינט 3</th><th>משימה</th></tr>
+    <tr><td>רשת ריבוי-מצלמות</td><td><span class="badge badge-now">ריקה — <code>stream:new_producer</code> לא נשלח</span></td><td>2–4 מצלמות מתמלאות/מתרוקנות חי</td><td>J1+J2</td></tr>
+    <tr><td>Redux store</td><td><span class="badge badge-now">רק wallet / inbox / history</span></td><td><code>gameStream</code> + <code>game</code> + <code>participants</code></td><td>SCRUM-185</td></tr>
+    <tr><td>HostScreen</td><td><span class="badge badge-now">סניף מוכן, אין PR; main = stub</span></td><td>ממוזג + <code>LiveIndicator</code></td><td>A1</td></tr>
+    <tr><td>PlayerScreen</td><td><span class="badge badge-now">מרנדר <code>&lt;Text&gt;</code> במקום וידאו</span></td><td><code>RTCView</code> אמיתי, עד 4 + self-preview</td><td>A2b</td></tr>
+    <tr><td>ModeratorScreen</td><td><span class="badge badge-now">אין <code>ModeratorScreen.js</code> ב-main</span></td><td>נבנה מרכיבים משותפים + חיווט אמיתי</td><td>A4a/A4b</td></tr>
+    <tr><td>DVR</td><td><span class="badge badge-now">טיימר 30ש' קשיח</span></td><td>מבוסס-אירוע: שאלה מקפיאה / פתרון משחרר</td><td>D2</td></tr>
+    <tr><td>רכיבים משותפים</td><td><span class="badge badge-now">פרימיטיבים inline ב-GameScreen</span></td><td><code>QuestionCard</code>+<code>JoinLifecycle</code>+פרימיטיבים</td><td>K1/K2/K3</td></tr>
+    <tr><td>כלכלה</td><td><span class="badge badge-now"><code>DIRECT_WIN</code> קורס בכל פתרון</span></td><td><code>WINNER_PAYOUT</code> + Stripe מוסר</td><td>C4</td></tr>
+    <tr><td>סכמת שאלה</td><td><span class="badge badge-now">חסר <code>timeLimit</code>+<code>isDraft</code></span></td><td>שדות + migration + service/controller</td><td>SCRUM-186</td></tr>
+    <tr><td>שער 50 צופים</td><td><span class="badge badge-now">אין אכיפה בשרת</span></td><td>403 מתחת ל-50; הלקוח מציג "ממתינים"</td><td>C5</td></tr>
+    <tr><td>ניקוי "שידור הסתיים"</td><td><span class="badge badge-now">מאזין ל-<code>stream:closed</code> שלא נשלח</span></td><td>מיושר ל-<code>STREAM.ENDED</code></td><td>J3</td></tr>
+    <tr><td>ניתוב 4 התפקידים</td><td><span class="badge badge-now">רק HOST/PLAYER/else</span></td><td>ענף MODERATOR + <code>joinGame</code></td><td>ROUTE-A/B</td></tr>
+    <tr><td>i18n + RTL</td><td><span class="badge badge-now">Viewer בלבד; RTL קורס ב-new-arch</span></td><td>3 מסכים מתורגמים + מעבר שפה יציב</td><td>B3+182</td></tr>
+    <tr><td>ניתוב D1</td><td><span class="badge badge-after">מוזג (PR #92)</span></td><td>בסיס מוכן</td><td>—</td></tr>
+  </table>
+</div>
+
+<!-- 2 · FLOW -->
+<div class="section" id="s2">
+  <div class="section-header"><div class="section-number">2</div><h2>זרימת התהליך — מסע של פריים וידאו</h2></div>
+
+  <div class="diagram">
+    <div class="node">המנחה פותחת שידור <span class="tag">A1</span></div>
+    <div class="arrow-d">↓</div>
+    <div class="node">השרת מקבל מפיק וידאו <small>PRODUCE</small></div>
+    <div class="arrow-d">↓</div>
+    <div class="node block">השרת מודיע "מפיק חדש" + role <span class="tag block">J1 · היום לא קורה</span></div>
+    <div class="arrow-d">↓</div>
+    <div class="node">הלקוח מצרף את המפיק <span class="tag">J2 · CameraGrid</span></div>
+    <div class="arrow-d">↓</div>
+    <div class="node task">עד 4 מצלמות חי <span class="tag">A2b · Viewer · A4a</span></div>
+    <div class="arrow-d">↓</div>
+    <div class="node">המנחה הוסיפה שאלה → ה-DVR מקפיא צפייה <span class="tag">D2 · stream_paused</span></div>
+    <div class="arrow-d">↓</div>
+    <div class="node">המנחה פותרת → הצפייה משוחררת <span class="tag">D2 · stream_resumed</span></div>
+    <div class="arrow-d">↓</div>
+    <div class="node">זוכים מקבלים תשלום <span class="tag">C4 · WINNER_PAYOUT</span></div>
+  </div>
+
+  <div class="note">בלי <code>J1</code> הגריד ריק לכל תפקיד. בלי <code>SCRUM-185</code> אף מסך לא קורא <code>streamId</code>/<code>role</code>/<code>activeProducers</code>. שתי אלה חזית שבוע 1.</div>
+</div>
+
+<!-- 3 · CRITICAL PATHS -->
+<div class="section" id="s3">
+  <div class="section-header"><div class="section-number">3</div><h2>4 המסלולים הקריטיים</h2></div>
+
+  <div class="lane">
+    <div class="lane-label purple">1 · גריד</div>
+    <div class="lane-body ltr">
+      <span class="chip block">SCRUM-185</span><span class="arrow-r">→</span>
+      <span class="chip block">J1</span><span class="arrow-r">→</span>
+      <span class="chip">J2</span><span class="arrow-r">→</span>
+      <span class="chip">A2b / ViewerGrid</span>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="lane-label cyan">2 · מנהלת</div>
+    <div class="lane-body ltr">
+      <span class="chip">A1</span><span class="chip">K1</span><span class="chip">K2</span><span class="chip">K3</span><span class="arrow-r">→</span>
+      <span class="chip">A4a</span><span class="arrow-r">→</span>
+      <span class="chip">A4b</span>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="lane-label cyan">3 · כלכלה</div>
+    <div class="lane-body ltr">
+      <span class="chip">C4 · fix DIRECT_WIN</span><span class="arrow-r">→</span>
+      <span class="chip plain">S4 gifts בטוח</span>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="lane-label cyan">4 · ניתוב</div>
+    <div class="lane-body ltr">
+      <span class="chip block">SCRUM-185</span><span class="arrow-r">→</span>
+      <span class="chip">ROUTE-A</span><span class="arrow-r">→</span>
+      <span class="chip">ROUTE-B</span>
+    </div>
+  </div>
+  <div class="note">שני החסמים (סגול) משחררים את כל השאר — חייבים לנחות בשבוע 1.</div>
+</div>
+
+<!-- 4 · TIMELINE -->
+<div class="section" id="s4">
+  <div class="section-header"><div class="section-number">4</div><h2>צייר זמן — 2 שבועות</h2></div>
+  <div class="note key">הסדר נגזר מהתלויות: מה שמשחרר אחרים (חסמים + אטומים) בשבוע 1; הבנייה שמתבססת עליהם בשבוע 2.</div>
+
+  <div class="lane">
+    <div class="lane-label">יום 0</div>
+    <div class="lane-body">
+      <span class="chip plain">backend + לקוח על אנדרואיד רצים</span>
+      <span class="chip plain">D1 מוזג</span>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="lane-label purple">שבוע 1</div>
+    <div class="lane-body">
+      <span class="chip block">SCRUM-185</span>
+      <span class="chip block">J1</span>
+      <span class="chip block">A1</span>
+      <span class="chip">SCRUM-186</span>
+      <span class="chip">C4</span>
+      <span class="chip">K1 → K2 → K3</span>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="lane-label cyan">שבוע 2</div>
+    <div class="lane-body">
+      <span class="chip">J2</span><span class="chip">A2b</span><span class="chip">A4a</span><span class="chip">A4b</span>
+      <span class="chip">C5</span><span class="chip">D2</span><span class="chip">ROUTE-A</span><span class="chip">ROUTE-B</span>
+      <span class="chip">J3</span><span class="chip">B3</span><span class="chip">SCRUM-182</span>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="lane-label">סיום</div>
+    <div class="lane-body">
+      <span class="chip plain">End-to-End: מנחה → שחקניות → גריד חי → מנהלת (50 צופים) → שאלה מקפיאה → פתרון משחרר → תשלום · ללא mocks</span>
+    </div>
+  </div>
+</div>
+
+<!-- 5 · SCREENS MAP -->
+<div class="section" id="s5">
+  <div class="section-header"><div class="section-number">5</div><h2>מפת מסכים — מה נוצר ומה מתעדכן</h2></div>
+  <table>
+    <tr><th>משימה</th><th>נוצר</th><th>מתעדכן</th></tr>
+    <tr><td>SCRUM-185</td><td><code>gameSlice.js</code> · <code>participantsSlice.js</code></td><td><code>store/index.js</code> · <code>socketMiddleware.js</code> (תשתית, אין מסך)</td></tr>
+    <tr><td>SCRUM-186</td><td>migration</td><td><code>schema.prisma</code> · <code>question.service.js</code> · <code>question.controller.js</code></td></tr>
+    <tr><td>A1</td><td><code>LiveIndicator.js</code> · <code>app/host.js</code></td><td><code>BroadcastScreen.js</code> → HostScreen</td></tr>
+    <tr><td>A2b</td><td>—</td><td><code>PlayerScreen.js</code> · משתמש ב-<code>VideoTile</code>/<code>EnteringScreen</code></td></tr>
+    <tr><td>A4a</td><td><code>ModeratorScreen.js</code></td><td>מרכיב <code>VideoTile</code>/<code>LiveIndicator</code>/<code>QuestionCard</code>/<code>JoinLifecycle</code>/K1</td></tr>
+    <tr><td>A4b</td><td>—</td><td><code>ModeratorScreen.js</code> (חיווט report/mute/kick)</td></tr>
+    <tr><td>C5</td><td>—</td><td><code>ModeratorScreen.js</code> · <code>stream.service.js</code></td></tr>
+    <tr><td>C4</td><td>—</td><td><code>ShopScreen.js</code> · <code>economy.service.js</code> · מחיקת <code>payments.*</code></td></tr>
+    <tr><td>J1</td><td>—</td><td><code>media-server/stream.handler.js</code> (אין מסך)</td></tr>
+    <tr><td>J2</td><td><code>CameraGrid.js</code> · <code>utils/webrtc.js</code></td><td><code>ViewerScreen.js</code> · <code>PlayerScreen.js</code></td></tr>
+    <tr><td>J3</td><td>—</td><td><code>ViewerScreen.js</code></td></tr>
+    <tr><td>K1</td><td><code>Badge/Card/Field/Btn.js</code></td><td><code>GameScreen.js</code></td></tr>
+    <tr><td>K2</td><td><code>QuestionCard.js</code></td><td>נצרך ע"י A4a</td></tr>
+    <tr><td>K3</td><td><code>JoinLifecycle.js</code></td><td>מרכיב <code>EnteringScreen</code>; נצרך ע"י A4a</td></tr>
+    <tr><td>D2</td><td>—</td><td><code>question.controller.js</code> · <code>stream.controller.js</code></td></tr>
+    <tr><td>ROUTE-A</td><td>—</td><td><code>app/game_screen.js</code></td></tr>
+    <tr><td>ROUTE-B</td><td>—</td><td><code>(tabs)/live.js</code> · <code>gameActions.js</code></td></tr>
+    <tr><td>B3</td><td>—</td><td>Host/Player/Moderator · <code>locales/{en,he}/common.json</code></td></tr>
+    <tr><td>SCRUM-182</td><td>—</td><td><code>i18n.js</code></td></tr>
+  </table>
+</div>
+
+<!-- 6 · RULES -->
+<div class="section" id="s6">
+  <div class="section-header"><div class="section-number">6</div><h2>כללי עבודה — לקרוא לפני שמתחילים</h2></div>
+  <table>
+    <tr><th>כלל</th><th>פירוט</th></tr>
+    <tr><td>טוקני עיצוב</td><td>צבע/מרווח/רדיוס מ-<code>constants/design.js</code> בלבד — אסור hex קשיח</td></tr>
+    <tr><td>מחרוזות</td><td>כל טקסט דרך <code>t()</code> + מפתח ב-<code>locales/{en,he}/common.json</code></td></tr>
+    <tr><td>הרשאות</td><td>תפקיד פר-משחק (<code>GameParticipant.role</code>), לעולם לא <code>req.user.role</code></td></tr>
+    <tr><td>WebRTC</td><td>רק <code>@livekit/react-native-webrtc</code> דרך <code>MediasoupManager</code>; <code>RTCView</code> דורש <code>streamURL</code></td></tr>
+    <tr><td>אירועי סוקט</td><td>דרך <code>SOCKET_EVENTS.STREAM.*</code> — לא literal</td></tr>
+    <tr><td>ניקוי + פלטפורמה</td><td>ניקוי כל interval/listener/consumer ב-unmount; אנדרואיד בלבד; אסור <code>reloadAsync()</code> מתוך מסך</td></tr>
+  </table>
+</div>
+
+<!-- 7 · INFRA -->
+<div class="section" id="s7">
+  <div class="section-header"><div class="section-number">7</div><h2>תשתית — SCRUM-185 · SCRUM-186</h2></div>
+
+  <div class="task-card">
+    <div class="task-card-header block"><div class="task-jira">SCRUM-185</div><div class="task-title">רישום Redux store</div><div class="task-effort">M · חסם לכל מסכי התפקיד</div></div>
+    <div class="task-card-body">
+      <div class="ba">
+        <div class="col now"><h4>עכשיו</h4><ul>
+          <li><code>store/index.js</code> = wallet / inbox / history</li>
+          <li><code>gameStreamSlice.js</code> קיים אך לא רשום</li>
+          <li>middleware מאזין רק ל-<code>WALLET.BALANCE_UPDATE</code></li>
+        </ul></div>
+        <div class="col aft"><h4>אחרי</h4><ul>
+          <li>3 reducers: <code>gameStream</code>/<code>game</code>/<code>participants</code></li>
+          <li>listener ל-<code>game:room_update</code> ממלא משתתפים</li>
+          <li>selectors עובדים מכל מסך</li>
+        </ul></div>
+      </div>
+      <div class="chain">
+        <span class="chip">רשום gameStream</span><span class="arrow-r">→</span>
+        <span class="chip">צור gameSlice</span><span class="arrow-r">→</span>
+        <span class="chip">צור participantsSlice</span><span class="arrow-r">→</span>
+        <span class="chip">רשום שניהם</span>
+      </div>
+      <div class="diagram">
+        <div class="node block">socketMiddleware · on GAME.ROOM_UPDATE<small>USER_JOINED / MODERATOR_ACCEPTED</small></div>
+        <div class="arrow-d">↓</div>
+        <div class="node task">dispatch(addParticipant({ userId, username, role }))</div>
+      </div>
+      <div class="note">middleware כבר ב-<code>concat</code> — הוספה חוזרת = double-dispatch. העבודה החדשה היא ה-listener. הסרת משתתף על ניתוק = מחוץ לסקופ.</div>
+      <ul class="checklist">
+        <li><code>gameStream</code>/<code>game</code>/<code>participants</code> רשומים, selectors עובדים</li>
+        <li><code>addParticipant</code> מבצע dedupe לפי userId</li>
+        <li>middleware מגיב ל-<code>game:room_update</code> (ללא רישום כפול); אין שגיאות Redux</li>
+        <li>PR תשתית בלבד — אין שינוי מסכים</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">SCRUM-186</div><div class="task-title">סכמת שאלה — timeLimit + isDraft</div><div class="task-effort">S · DB מקומי</div></div>
+    <div class="task-card-body">
+      <p>בלי <code>timeLimit</code> הקפאת ה-DVR קשיחה ולא פר-שאלה; בלי <code>isDraft</code> אין הכנת שאלות מראש.</p>
+      <pre>schema.prisma → Question:
+  timeLimit  Int     @default(30) @map("time_limit")
+  isDraft    Boolean @default(false) @map("is_draft")
+migrate dev --name add-question-timelimit-isdraft   (localhost:5432 בלבד)
+question.service.js  → createQuestion שומר את השדות
+question.controller.js → addQuestion קורא מ-req.body + ולידציה</pre>
+      <div class="note">migration על DB מקומי בלבד — לעולם לא <code>db push</code> על prod. commit לתיקיית ה-migration. שגיאות באנגלית.</div>
+      <ul class="checklist">
+        <li>הסכמה כוללת <code>timeLimit</code>+<code>isDraft</code>; migration committed</li>
+        <li><code>POST /questions</code> מקבל ושומר את השדות; ולידציה ל-timeLimit חיובי</li>
+        <li>migration רץ נקי על DB טרי</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 8 · TRACK A -->
+<div class="section" id="s8">
+  <div class="section-header"><div class="section-number">8</div><h2>מסכי תפקיד — A1 · A2b · A4a · A4b</h2></div>
+
+  <div class="task-card">
+    <div class="task-card-header block"><div class="task-jira">A1 · SCRUM-128</div><div class="task-title">HostScreen — מיזוג + LiveIndicator</div><div class="task-effort">S · הסניף מוכן · Figma 7083:97876</div></div>
+    <div class="task-card-body">
+      <p>הסניף <code>A1/feat/host-screen</code> בנוי ועבר review. הנותר: לפתוח PR, לטפל בהערות, ולמזג. עמוד השדרה של הספרינט.</p>
+      <div class="chain center">
+        <span class="chip">סניף A1 מוכן</span><span class="arrow-r">→</span>
+        <span class="chip">PR + הערות</span><span class="arrow-r">→</span>
+        <span class="chip">מיזוג</span><span class="arrow-r">→</span>
+        <span class="chip">host.js + LiveIndicator ב-main</span>
+      </div>
+      <div class="note"><code>host_test.js</code> נמחק ב-PR. לוודא שה-PR לא דורס ב-stub הישן. נתיב WebRTC יחיד; אסור <code>reloadAsync()</code>.</div>
+      <ul class="checklist">
+        <li>PR נפתח; <code>host_test.js</code> נמחק</li>
+        <li>ניקוי unmount: tracks נעצרים, transport נסגר, משחק → FINISHED</li>
+        <li>נתיב WebRTC יחיד; double-start guard; <code>LiveIndicator</code> ממוזג; צילום before/after</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header block"><div class="task-jira">A2b · SCRUM-129</div><div class="task-title">PlayerScreen — רינדור גריד אמיתי</div><div class="task-effort">M · תלוי SCRUM-185 · Figma 7691:45749</div></div>
+    <div class="task-card-body">
+      <p>חצי האיתות (A2a) ורכיבי הווידאו מוזגו. הפער: <code>VideoView</code> מרנדר <code>&lt;Text&gt;</code> במקום וידאו.</p>
+      <div class="chain center">
+        <span class="chip">VideoTile (מוזג)</span><span class="arrow-r">→</span>
+        <span class="chip">remoteStreams.slice(0,4)</span><span class="arrow-r">→</span>
+        <span class="chip">4 ריבועים חי</span>
+      </div>
+      <div class="chain center">
+        <span class="chip plain">self-preview: getLocalStream()</span><span class="arrow-r">→</span>
+        <span class="chip">VideoTile בפינה</span>
+      </div>
+      <div class="note"><code>streamId</code> מ-Redux gameStream (SCRUM-185), לא prop-drilling. <code>stream:new_producer</code> עוד לא נשלח (J1) — לבדוק ידנית. <code>RTCView</code> דורש <code>stream.toURL()</code>.</div>
+      <ul class="checklist">
+        <li>עד 4 ריבועי <code>RTCView</code> אמיתי (לא <code>&lt;Text&gt;</code>); self-preview</li>
+        <li><code>EnteringScreen</code> עד הצטרפות ואז נעלם; streamId מ-Redux</li>
+        <li>צילום before/after עם ריבועי וידאו</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header block"><div class="task-jira">A4a</div><div class="task-title">ModeratorScreen — בנייה מאטומים</div><div class="task-effort">L · תלוי A1, 185, K1/K2/K3 · Figma 7097:51662</div></div>
+    <div class="task-card-body">
+      <p>המסך האחרון שטרם מוזג. נבנה ע"י הרכבת אטומים משותפים + העתקת דפוס ה-consume מ-<code>PlayerScreen</code>.</p>
+      <div class="diagram">
+        <div class="drow"><div class="node sm">consume (דפוס PlayerScreen)</div><span class="arrow-r">→</span><div class="node task sm">VideoTile / LiveIndicator</div></div>
+        <div class="drow"><div class="node sm">Accept / Reject</div><span class="arrow-r">→</span><div class="node task sm">JoinLifecycle · K3</div></div>
+        <div class="drow"><div class="node sm">רשימת משתתפים</div><span class="arrow-r">→</span><div class="node task sm">Card / Badge · K1</div></div>
+        <div class="drow"><div class="node sm">פאנל שאלות</div><span class="arrow-r">→</span><div class="node task sm">QuestionCard · K2</div></div>
+        <div class="drow"><div class="node sm">פעולות הרסניות</div><span class="arrow-r">→</span><div class="node ghost sm">onPress ריק + TODO · A4b</div></div>
+      </div>
+      <div class="note">להרכיב אטומים קיימים, לא layout מותאם. אסור countdown/פאנל inline — K3/K2 מחזיקים אותם.</div>
+      <ul class="checklist">
+        <li><code>ModeratorScreen.js</code> נוצר, עולה דרך ניתוב D1</li>
+        <li>consume מייצר RTCView; Accept/reject דרך <code>JoinLifecycle</code></li>
+        <li>רשימה מ-Redux; פאנל דרך <code>QuestionCard</code>; <code>t()</code> + טוקנים + PropTypes</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">A4b</div><div class="task-title">ModeratorScreen — חיווט פעולות הרסניות</div><div class="task-effort">S · תלוי A4a</div></div>
+    <div class="task-card-body">
+      <p>חיווט report / mute / kick ל-endpoints של C3 (מוזגו), כל אחד עם דיאלוג אישור אמיתי.</p>
+      <pre>Alert.alert("אישור", "...", [
+  { text: "ביטול" },
+  { text: "אישור", onPress: () => callC3() }
+])</pre>
+      <ul class="checklist">
+        <li>report/mute/kick — דיאלוג <code>Alert</code> אמיתי לכל אחד</li>
+        <li>אפס <code>onPress={() => {}}</code> ריקים בנתיבים ההרסניים</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 9 · TRACK J -->
+<div class="section" id="s9">
+  <div class="section-header"><div class="section-number">9</div><h2>רשת ריבוי-מצלמות — J1 · J2 · J3 (הסיכון המרכזי)</h2></div>
+  <div class="note">הפיצ'ר המגדיר של הספרינט. האיתות לא קיים עדיין — <code>stream:new_producer</code> מעולם לא נשלח, לכן הגריד ריק.</div>
+
+  <div class="task-card">
+    <div class="task-card-header block"><div class="task-jira">J1 · SCRUM-167</div><div class="task-title">Media-server — איתות מפיקים + roles + JOIN</div><div class="task-effort">M · PR פתוח כמעט סגור</div></div>
+    <div class="task-card-body">
+      <p>שלושה שינויים ב-<code>stream.handler.js</code> כדי שהגריד יתמלא — למצטרפים מאוחרים (רשימה ראשונית) ובזמן אמת, עם role לכל מפיק.</p>
+      <div class="drow" style="justify-content:flex-start">
+        <div class="node ghost sm">חסר: NEW_PRODUCER emit</div>
+        <div class="node ghost sm">חסר: role בחוזה JOIN</div>
+        <div class="node ghost sm">חסר: ניקוי producerRoles</div>
+      </div>
+      <div class="diagram">
+        <div class="node">role דרך validateParticipantRole <small>per-game, לא socket.user.role</small></div>
+        <div class="arrow-d">↓</div>
+        <div class="node task">emit STREAM.NEW_PRODUCER { producerId, role }</div>
+        <div class="arrow-d">↓</div>
+        <div class="node task">JOIN → currentProducers:[{producerId,role}] + שמור currentProducerId (HOST)</div>
+      </div>
+      <div class="note">SCRUM-154 (שורה 205) עשה producer-map close — לא לגעת. J1 = producerRoles + emit. SCRUM-184 (consumer-map leak, שורה 295) = שורה נפרדת לפני merge.</div>
+      <ul class="checklist">
+        <li>מפיק חדש → כל הסוקטים מקבלים <code>stream:new_producer {producerId, role}</code></li>
+        <li>JOIN מחזיר <code>currentProducers</code> עם role מאומת; שומר <code>currentProducerId</code> (Viewer לא נשבר)</li>
+        <li><code>producerRoles</code> מתנקה; <code>SOCKET_EVENTS</code>; Vitest; lint נקי</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header block"><div class="task-jira">J2 · SCRUM-174</div><div class="task-title">Client — CameraGrid + מנוי ל-new_producer</div><div class="task-effort">M · תלוי J1, 185, A1 · Figma 7097:45650</div></div>
+    <div class="task-card-body">
+      <p>רכיב <code>&lt;CameraGrid&gt;</code> משותף שמרנדר עד 4 <code>VideoTile</code> חיים — משמש Viewer (overlay) ו-Player (גריד).</p>
+      <div class="diagram">
+        <div class="drow"><div class="node sm">on(new_producer)</div><span class="arrow-r">→</span><div class="node sm">createConsumerStream</div><span class="arrow-r">→</span><div class="node task sm">הוסף ריבוע · slice(0,4)</div></div>
+        <div class="drow"><div class="node sm">on(producer_closed)</div><span class="arrow-r">→</span><div class="node task sm">הסר ריבוע</div></div>
+        <div class="drow"><div class="node sm">seed בהצטרפות · currentProducers</div><span class="arrow-r">→</span><div class="node task sm">consume לכל אחד</div></div>
+        <div class="drow"><div class="node sm">אחרי כל consumer</div><span class="arrow-r">→</span><div class="node task sm">emitPromise(STREAM.RESUME)</div></div>
+      </div>
+      <div class="note">מצטרפת מאוחרת חייבת seed מ-JOIN, אחרת רואה גריד ריק. <code>createConsumerStream</code> מחולץ ל-<code>utils/webrtc.js</code> (לא לייבא ממסך). ניקוי unmount: listeners + consumers.</div>
+      <ul class="checklist">
+        <li><code>CameraGrid.js</code> · מנוי new_producer/producer_closed · seed מ-JOIN</li>
+        <li>תקרת 4 · <code>createConsumerStream</code> ב-<code>utils/webrtc.js</code> · <code>stream:resume</code> אחרי כל consumer</li>
+        <li>Viewer overlay · Player מחליף לולאה · ניקוי unmount · צילום before/after</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">J3 · חדש</div><div class="task-title">יישור שם אירוע — stream:closed → STREAM.ENDED</div><div class="task-effort">S · אין שינוי UI</div></div>
+    <div class="task-card-body">
+      <p>הלקוח מאזין ל-<code>stream:closed</code>, השרת שולח <code>stream:ended</code> — לכן ניקוי "שידור הסתיים" אף פעם לא רץ.</p>
+      <div class="chain center">
+        <span class="chip plain">on('stream:closed')</span><span class="arrow-r">→</span>
+        <span class="chip">on(SOCKET_EVENTS.STREAM.ENDED)</span>
+      </div>
+      <div class="note">לא לשנות את אירוע השרת (<code>stream:ended</code> נכון) — רק את המאזין בלקוח. לוודא שכל קבוע קיים לפני ההחלפה.</div>
+      <ul class="checklist">
+        <li>ViewerScreen מאזין ל-<code>STREAM.ENDED</code>; הניקוי אכן רץ (בדיקה ידנית)</li>
+        <li>literals נוספים דרך <code>SOCKET_EVENTS</code>; אין <code>undefined</code></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 10 · TRACK K -->
+<div class="section" id="s10">
+  <div class="section-header"><div class="section-number">10</div><h2>רכיבים משותפים — K1 · K2 · K3</h2></div>
+  <div class="note">תנאי-מקדים ל-A4a כדי שמסך המנהלת ירכיב אטומים ולא ימציא מחדש. <code>VideoTile</code>/<code>Avatar</code> מוזגו; <code>LiveIndicator</code> ב-A1; <code>CameraGrid</code> ב-J2.</div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">K1</div><div class="task-title">חילוץ Badge / Card / Field / Btn מ-GameScreen</div><div class="task-effort">S · אין תלות</div></div>
+    <div class="task-card-body">
+      <p><code>GameScreen.js</code> מגדיר את 4 הפרימיטיבים inline. לחלץ כל אחד ל-<code>components/game/</code>. מהלך מכני, סיכון נמוך.</p>
+      <div class="chain center">
+        <span class="chip plain">GameScreen · Badge/Card/Field/Btn inline</span><span class="arrow-r">→</span>
+        <span class="chip">components/game/*.js</span><span class="arrow-r">→</span>
+        <span class="chip">GameScreen imports · רינדור זהה</span>
+      </div>
+      <div class="note">לשמור טוקנים מ-<code>design.js</code>, לא hex. מהלך טהור — בלי לוגיקה חדשה.</div>
+      <ul class="checklist">
+        <li>4 קבצים תחת <code>components/game/</code> עם PropTypes + טוקנים</li>
+        <li><code>GameScreen.js</code> מייבא; אין inline; רינדור זהה (צילום)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">K2</div><div class="task-title">QuestionCard — moderator + viewer placeholder</div><div class="task-effort">M · תלוי K1 · Figma 7097:53517</div></div>
+    <div class="task-card-body">
+      <p>אטום עם prop <code>mode</code>. moderator (הספרינט): שאלה + אפשרויות + Resolve + pending pills. viewer: placeholder Button (wager = S4).</p>
+      <div class="drow" style="justify-content:flex-start">
+        <div class="node task sm">mode="moderator"<small>טקסט + אפשרויות + Resolve + pills</small></div>
+        <div class="node ghost sm">mode="viewer"<small>placeholder Button · TODO S4</small></div>
+      </div>
+      <div class="note">לא לבנות את גרירת ה-wager (S4). שני המצבים ברכיב אחד (prop-driven), לא שני קבצים.</div>
+      <ul class="checklist">
+        <li><code>QuestionCard.js</code> עם <code>mode</code>; moderator = טקסט+אפשרויות+Resolve+pills</li>
+        <li>viewer = placeholder Button + TODO S4; מרכיב K1; <code>t()</code>; A4a צורך אותו</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">K3</div><div class="task-title">JoinLifecycle — entering / rejected / dialog</div><div class="task-effort">M · אין תלות · Figma 7097:51677</div></div>
+    <div class="task-card-body">
+      <p>overlay מסך-מלא עם 3 מצבים ו-prop <code>role</code>. מאחד את זרימת ההצטרפות של A2b ו-A4a.</p>
+      <div class="drow">
+        <div class="node task sm">entering<small>מרכיב EnteringScreen</small></div>
+        <div class="node sm">rejected<small>overlay דחייה</small></div>
+        <div class="node sm">dialog<small>Accept/Reject + countdown</small></div>
+      </div>
+      <div class="note">לא לממש מחדש את <code>EnteringScreen</code> — להרכיב אותו. ה-countdown חייב <code>clearInterval</code> ב-unmount.</div>
+      <ul class="checklist">
+        <li><code>JoinLifecycle.js</code> props <code>state</code>/<code>role</code>/<code>countdown</code>/<code>onAccept</code>/<code>onDecline</code></li>
+        <li><code>entering</code> מרכיב <code>EnteringScreen</code>; countdown נסגר ב-unmount</li>
+        <li>A4a צורך אותו (אין overlay inline); <code>t()</code>; צילום 3 המצבים</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 11 · TRACK C -->
+<div class="section" id="s11">
+  <div class="section-header"><div class="section-number">11</div><h2>כלכלה + שער — C4 · C5</h2></div>
+
+  <div class="task-card">
+    <div class="task-card-header block"><div class="task-jira">C4</div><div class="task-title">תיקון כלכלה (DIRECT_WIN) + הסרת Stripe</div><div class="task-effort">S · חוסם את S4</div></div>
+    <div class="task-card-body">
+      <div class="ba">
+        <div class="col now"><h4>עכשיו</h4><ul>
+          <li><code>economy.service.js</code> 163/171 = <code>DIRECT_WIN</code> (לא ב-enum) → קורס בכל פתרון</li>
+          <li>Stripe מיובא ב-<code>payments.*</code> + <code>ShopScreen.js</code></li>
+        </ul></div>
+        <div class="col aft"><h4>אחרי</h4><ul>
+          <li><code>WINNER_PAYOUT</code> תקין (לוודא שקיים ב-enum)</li>
+          <li><code>payments.*</code> נמחקים; <code>ShopScreen</code> = stub "מגיע בקרוב"</li>
+          <li>Stripe מוסר מ-<code>package.json</code></li>
+        </ul></div>
+      </div>
+      <div class="note"><code>ShopScreen.js</code> נשאר (ה-tab מקשר אליו) — רק stub לתוכן. אם <code>WINNER_PAYOUT</code> חסר — להוסיף ל-enum + migration.</div>
+      <ul class="checklist">
+        <li>163/171 → <code>WINNER_PAYOUT</code> (מאומת ב-enum)</li>
+        <li><code>payments.*</code> נמחקים + הוסר מ-<code>app.js</code>; ShopScreen stub</li>
+        <li>Stripe הוסר; <code>npm install</code> נקי</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">C5</div><div class="task-title">שער 50 צופים — guard להצטרפות מנהלת</div><div class="task-effort">S · תלוי A4a · SPEC §7.4</div></div>
+    <div class="task-card-body">
+      <p>השרת דוחה הצטרפות מנהלת אם פחות מ-50 צופים חיים (המספרים "15/50 עוקבים" הישנים היו שגויים והוסרו).</p>
+      <pre>const viewerCount = await streamService.getViewerCount(streamId);
+if (viewerCount < 50) return res.status(403).json({ error: '...50 viewers...' });</pre>
+      <div class="note">שער הצטרפות-מנהלת בלבד — לא חוסם את המנחה. אם <code>getViewerCount</code> חסר — להוסיף ל-<code>stream.service.js</code>. retry בלקוח מנקה interval ב-unmount.</div>
+      <ul class="checklist">
+        <li>403 מתחת ל-50; <code>getViewerCount</code> קיים</li>
+        <li>overlay "ממתינים ל-50 צופים" (לא קריסה); מתרענן ונעלם אוטומטית</li>
+        <li>המנחה לא מושפעת מהשער</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 12 · TRACK D -->
+<div class="section" id="s12">
+  <div class="section-header"><div class="section-number">12</div><h2>DVR — D2</h2></div>
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">D2 · SCRUM-172</div><div class="task-title">DVR — הקפאה/שחרור לפי מחזור השאלה</div><div class="task-effort">M · תלוי SCRUM-186</div></div>
+    <div class="task-card-body">
+      <p>הטיימר ה-30ש' הקשיח מוחלף בטריגר מבוסס-אירוע. שכבת הלקוח (הבאנר) כבר קיימת — סוגרים את לולאת השרת.</p>
+      <div class="diagram">
+        <div class="drow"><div class="node sm">addQuestion() · new_question</div><span class="arrow-r">→</span><div class="node task sm">PAUSE + emit stream_paused</div></div>
+        <div class="drow"><div class="node sm">closeQuestion() · תגמולים</div><span class="arrow-r">→</span><div class="node task sm">LIVE + emit stream_resumed</div></div>
+      </div>
+      <div class="note"><code>streamId</code> נגזר מ-<code>gameId</code>; הסר את ה-<code>setTimeout</code> 30ש'. <code>updateStreamStatus</code> בודק host — להעביר <code>hostId</code> של השידור, לא userId של המנהלת.</div>
+      <ul class="checklist">
+        <li><code>addQuestion()</code> מקפיא; <code>closeQuestion()</code> משחרר; setTimeout הוסר</li>
+        <li>באנר DVR מופיע/נעלם עם השאלה (לאמת)</li>
+        <li>בדיקת אינטגרציה: מנחה+צופָה+מנהלת</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 13 · ROUTING + i18n -->
+<div class="section" id="s13">
+  <div class="section-header"><div class="section-number">13</div><h2>ניתוב + i18n — ROUTE-A/B · B3 · SCRUM-182</h2></div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">ROUTE-A</div><div class="task-title">game_screen — ענף MODERATOR + guard</div><div class="task-effort">S · תלוי 185, A4a</div></div>
+    <div class="task-card-body">
+      <p><code>game_screen.js</code> מנתב רק HOST/PLAYER/else — מנהלת נופלת ל-else ומקבלת בטעות את מסך הצופָה.</p>
+      <div class="diagram">
+        <div class="drow"><div class="node sm">gameStream undefined?</div><span class="arrow-r">→</span><div class="node ghost sm">loading (לא קריסה)</div></div>
+        <div class="drow"><div class="node sm">role === 'MODERATOR'?</div><span class="arrow-r">→</span><div class="node task sm">ModeratorScreen</div></div>
+        <div class="drow"><div class="node sm">else</div><span class="arrow-r">→</span><div class="node sm">ViewerScreen · fallback בטוח</div></div>
+      </div>
+      <div class="note">לא לגייט על <code>User.role</code>. לרצף אחרי SCRUM-185, אחרת המסך קורס ב-mount.</div>
+      <ul class="checklist">
+        <li>MODERATOR מרנדר מסך מנהלת; else נשאר fallback</li>
+        <li><code>gameStream</code> undefined → loading (לא קריסה); אין <code>User.role</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">ROUTE-B</div><div class="task-title">טאב LIVE → game_screen + joinGame</div><div class="task-effort">M · תלוי 185, ROUTE-A</div></div>
+    <div class="task-card-body">
+      <p><code>(tabs)/live.js</code> עדיין placeholder עם כפתורי <code>*_test</code>. לנתב ל-<code>game_screen</code> וליצור <code>joinGame</code> שממלא את <code>gameStream</code>.</p>
+      <div class="chain center">
+        <span class="chip">joinGame(gameId)</span><span class="arrow-r">→</span>
+        <span class="chip">role מהשרת</span><span class="arrow-r">→</span>
+        <span class="chip">initGameSession</span><span class="arrow-r">→</span>
+        <span class="chip">navigate game_screen</span>
+      </div>
+      <div class="note">התפקיד מרשומת המשתתף בשרת (per-game), לא <code>User.role</code>. לא להחזיר את מסכי ה-<code>*_test</code> הזמניים.</div>
+      <ul class="checklist">
+        <li>LIVE מנתב ל-<code>game_screen</code> (לא <code>*_test</code>)</li>
+        <li><code>joinGame</code> ממלא role/gameId/streamId; המסך הנכון נפתח; כפתורי test הוסרו</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">B3 · SCRUM-136</div><div class="task-title">i18n — תרגום inline בכל מסך</div><div class="task-effort">S · תלוי A1/A2b/A4a</div></div>
+    <div class="task-card-body">
+      <p>3 מסכי התפקיד חייבים <code>t()</code> לכל מחרוזת. כל בעלת מסך ממירה תוך כדי בנייה (לא סוויפ בסוף).</p>
+      <ul class="checklist">
+        <li>Host/Player/Moderator — אפס מחרוזות קשיחות</li>
+        <li>אין אזהרות "מפתח חסר" ב-runtime</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-card-header"><div class="task-jira">SCRUM-182</div><div class="task-title">i18n RTL — reloadAsync + הקפאת cache</div><div class="task-effort">M · carryover · אנדרואיד</div></div>
+    <div class="task-card-body">
+      <pre>applyRTL(): זהה new-arch (global.__turboModuleProxy)
+  new-arch  →  Linking.openURL(...) במקום Updates.reloadAsync()
+  cache     →  getDeviceLanguage() קורא locale נוכחי, לא cached
+בדיקה: מכשיר אנדרואיד פיזי (לא Expo Go)</pre>
+      <ul class="checklist">
+        <li>מעבר שפה לא קופא/קורס; RTL מתחלף נכון</li>
+        <li>שפת מכשיר מזוהה טרי בכל הפעלה; אנדרואיד בלבד</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 14 · DoD -->
+<div class="section" id="s14">
+  <div class="section-header"><div class="section-number">14</div><h2>Definition of Done</h2></div>
+  <div class="note key">routing בלי flicker · גריד 2–4 מצלמות מתמלא/מתרוקן חי · קלוז-אפ בלי mocks · שאלה מקפיאה ופתרון משחרר · הכלכלה לא קורסת.</div>
+
+  <h3>Backend</h3>
+  <ul class="checklist">
+    <li>store: <code>gameStream</code>+<code>game</code>+<code>participants</code> רשומים; <code>game:room_update</code> ממלא משתתפים</li>
+    <li>סכמת <code>Question</code>: <code>timeLimit</code>+<code>isDraft</code>+migration; כלכלה <code>WINNER_PAYOUT</code>; Stripe מוסר</li>
+    <li>שער 50 צופים 403; DVR מקפיא/משחרר; media-server שולח <code>new_producer</code>; JOIN מחזיר <code>currentProducers</code></li>
+  </ul>
+  <h3>Frontend (אנדרואיד)</h3>
+  <ul class="checklist">
+    <li>HostScreen ממוזג; PlayerScreen 4 <code>RTCView</code>; ModeratorScreen מאטומים + אישורים</li>
+    <li><code>CameraGrid</code> מתמלא/מתרוקן; ניתוב כל 4 התפקידים; LIVE → game_screen</li>
+    <li>overlay 50 צופים; באנר DVR עם השאלה</li>
+  </ul>
+  <h3>איכות</h3>
+  <ul class="checklist">
+    <li>אין <code>User.role</code>; אין hex — טוקנים; כל מחרוזת <code>t()</code>; כל אירוע <code>SOCKET_EVENTS</code></li>
+    <li>PropTypes; ניקוי unmount; lint נקי; אנדרואיד בלבד</li>
+  </ul>
+</div>
+
+<!-- 15 · NOT THIS SPRINT -->
+<div class="section" id="s15">
+  <div class="section-header"><div class="section-number">15</div><h2>לא בספרינט הזה</h2></div>
+  <table>
+    <tr><th>פריט</th><th>יעד</th><th>למה לא עכשיו</th></tr>
+    <tr><td>H1a — PlayerScreen rejected/enter-to-live</td><td><span class="badge badge-now">S4</span></td><td>הועבר ל-backlog</td></tr>
+    <tr><td>גרירת wager (drag-the-coin)</td><td><span class="badge badge-now">S4</span></td><td>QuestionCard viewer = placeholder</td></tr>
+    <tr><td>נגן HLS לצופָה (A3b)</td><td><span class="badge badge-now">S4</span></td><td>הגריד WebRTC קודם</td></tr>
+    <tr><td>DVR segment buffer (media-server)</td><td><span class="badge badge-now">S4</span></td><td>שכבת השרת (D2) קודם</td></tr>
+    <tr><td>הסרת DIAMOND מ-CurrencyType</td><td><span class="badge badge-now">S4</span></td><td>לא בשימוש — לא חוסם runtime</td></tr>
+    <tr><td>i18n מסכים legacy (B3b)</td><td><span class="badge badge-now">S4</span></td><td>מסכי התפקיד קודם</td></tr>
+    <tr><td>Practice Mode · אכיפת mute/kick בזמן אמת · audit log</td><td><span class="badge badge-now">S4+</span></td><td>מעבר לסקופ הספרינט</td></tr>
+  </table>
+</div>
+
+<div style="text-align:center; padding:28px 0; color:#A1A7B2; font-size:13px;">
+  HyPulse · ספרינט 3 — השידור הופך לאמיתי · 2026 · גרסה 3.0
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "app_title": "HyPulse",
+  "sign_in_subtitle": "התחברות",
+  "email_placeholder": "אימייל",
+  "password_placeholder": "סיסמה",
+  "sign_in_button": "התחבר",
+  "or_separator": "או",
+  "apple_button": "המשך עם Apple",
+  "facebook_button": "המשך עם Facebook (בקרוב)",
+  "error_title": "שגיאה",
+  "fill_all_fields_error": "אנא מלא את כל השדות",
+  "login_failed_title": "ההתחברות נכשלה",
+  "login_failed_default_message": "פרטי התחברות שגויים",
+  "sign_in_error_title": "שגיאת התחברות",
+  "try_again_button": "נסה שוב"
+}

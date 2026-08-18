@@ -1,0 +1,9 @@
+{
+  "load_error": "Failed to load messages: {{error}}",
+  "empty": "No new messages in inbox",
+  "badge_gift": "Gift",
+  "badge_follower": "Follower",
+  "badge_system": "System",
+  "mark_as_read_button": "Mark as read",
+  "follow_back_button": "Follow back"
+}
